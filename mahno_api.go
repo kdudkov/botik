@@ -2,14 +2,20 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"github.com/labstack/gommon/log"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/labstack/gommon/log"
 )
 
-type item struct {
+const (
+	host = "oh.tome"
+)
+
+type Item struct {
 	ClassName string        `json:"class"`
 	TTL       int           `json:"ttl"`
 	Value     interface{}   `json:"value"`
@@ -25,7 +31,7 @@ type item struct {
 }
 
 func ItemCommand(item string, cmd string) error {
-	url := fmt.Sprintf("http://oh.home/items/%s", item)
+	url := fmt.Sprintf("http://%s/items/%s", host, item)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(cmd)))
 	req.Header.Set("Content-Type", "application/json")
@@ -45,7 +51,7 @@ func ItemCommand(item string, cmd string) error {
 }
 
 func ItemState(item string, val string) error {
-	url := fmt.Sprintf("http://oh.home/items/%s", item)
+	url := fmt.Sprintf("http://%s/items/%s", host, item)
 
 	req, err := http.NewRequest("PUT", url, bytes.NewBuffer([]byte(val)))
 	req.Header.Set("Content-Type", "application/json")
@@ -62,4 +68,29 @@ func ItemState(item string, val string) error {
 	body, _ := ioutil.ReadAll(resp.Body)
 	log.Infof("body: %s", body)
 	return nil
+}
+
+func AllItems() (*[]Item, error) {
+	url := fmt.Sprintf("http://%s/items", host)
+
+	req, err := http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: time.Second * 5}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Errorf("error talking to mahno: %s", err.Error())
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	res := make([]Item, 0)
+	decoder := json.NewDecoder(resp.Body)
+	if err = decoder.Decode(&res); err != nil {
+		log.Errorf("can't decode")
+		return nil, err
+	}
+
+	return &res, nil
 }

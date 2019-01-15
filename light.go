@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/labstack/gommon/log"
 	"strings"
+
+	"github.com/labstack/gommon/log"
 )
 
 const (
@@ -13,6 +14,7 @@ const (
 	ALL_OFF     = "ALL_OFF"
 	NIGHT       = "NIGHT"
 	NOBODY_HOME = "NOBODY_HOME"
+	STATUS      = "STATUS"
 )
 
 type Light struct{}
@@ -63,6 +65,13 @@ func (l *Light) Check(msg string) (q *Q) {
 		return
 	}
 
+	if s := hasPrefix(m, "свет"); s != "" {
+		q.Matched = true
+		q.Prefix = s
+		q.Cmd = STATUS
+		return
+	}
+
 	q.Matched = false
 	return
 }
@@ -80,7 +89,7 @@ func (l *Light) Process(q *Q) string {
 		log.Infof("light %s ON", target)
 		err := ItemCommand(target, ON)
 
-		if (err != nil) {
+		if err != nil {
 			return fmt.Sprintf("ошибка: %s", err.Error())
 		}
 		return fmt.Sprintf("включаю %s", target)
@@ -93,7 +102,7 @@ func (l *Light) Process(q *Q) string {
 		log.Infof("light %s OFF", target)
 		err := ItemCommand(target, OFF)
 
-		if (err != nil) {
+		if err != nil {
 			return fmt.Sprintf("ошибка: %s", err.Error())
 		}
 		return fmt.Sprintf("выключаю %s", target)
@@ -110,7 +119,7 @@ func (l *Light) Process(q *Q) string {
 		allLight(OFF)
 		err := ItemState("home_mode", "night")
 
-		if (err != nil) {
+		if err != nil {
 			return fmt.Sprintf("ошибка: %s", err.Error())
 		}
 		return "ночной режим"
@@ -118,10 +127,17 @@ func (l *Light) Process(q *Q) string {
 	case NOBODY_HOME:
 		err := ItemState("home_mode", "nobody_home")
 
-		if (err != nil) {
+		if err != nil {
 			return fmt.Sprintf("ошибка: %s", err.Error())
 		}
 		return "режим отсутствия"
+
+	case STATUS:
+		items, err := AllItems()
+		if err != nil {
+			return fmt.Sprintf("ошибка: %s", err.Error())
+		}
+		return ""
 
 	default:
 		return fmt.Sprintf("не понимаю, что значит %s", q.Msg)

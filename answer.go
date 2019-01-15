@@ -13,9 +13,9 @@ type Answer interface {
 }
 
 type Q struct {
-	Msg string
-	Prefix string
-	Cmd string
+	Msg     string
+	Prefix  string
+	Cmd     string
 	Matched bool
 }
 
@@ -63,7 +63,7 @@ func indexOf(words []string, element ...string) int {
 	return -1
 }
 
-func hasPrefix(s string, prefixes... string) string {
+func hasPrefix(s string, prefixes ...string) string {
 	sort.Slice(prefixes, func(i, j int) bool {
 		return len(prefixes[i]) > len(prefixes[j])
 	})

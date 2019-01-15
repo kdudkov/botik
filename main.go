@@ -3,21 +3,22 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/go-telegram-bot-api/telegram-bot-api"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"net/http"
 	"net/url"
 	"os"
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/go-telegram-bot-api/telegram-bot-api"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type App struct {
 	bot      *tgbotapi.BotAPI
 	exitChan chan bool
-	users map[string]string
+	users    map[string]string
 }
 
 func NewApp() (app *App) {
@@ -78,7 +79,7 @@ func (app *App) Run() {
 	if proxy := viper.GetString("proxy"); proxy != "" {
 		proxyUrl, _ := url.Parse(proxy)
 		myClient := &http.Client{Transport: &http.Transport{
-			Proxy:                 http.ProxyURL(proxyUrl),
+			Proxy: http.ProxyURL(proxyUrl),
 			ResponseHeaderTimeout: time.Second * 30,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		}}
@@ -94,7 +95,7 @@ func (app *App) Run() {
 
 	updates := app.GetUpdatesChannel()
 
-	for ; ; {
+	for {
 		select {
 		case update := <-updates:
 			go app.Process(update)
@@ -115,7 +116,7 @@ func (app *App) Process(update tgbotapi.Update) {
 	log.WithFields(log.Fields{"from": update.Message.From.UserName, "id": update.Message.From.ID}).Infof("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 	var ans string
-	var found= false
+	var found = false
 	for _, id := range app.users {
 		if id == strconv.Itoa(update.Message.From.ID) {
 			found = true
@@ -123,7 +124,7 @@ func (app *App) Process(update tgbotapi.Update) {
 		}
 	}
 
-	if ! found {
+	if !found {
 		ans = "с незнакомыми не разговариваю"
 	} else {
 		ans = CheckAnswer(update.Message.Text)

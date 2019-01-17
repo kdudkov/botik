@@ -113,7 +113,8 @@ func (app *App) Process(update tgbotapi.Update) {
 		return
 	}
 
-	log.WithFields(log.Fields{"from": update.Message.From.UserName, "id": update.Message.From.ID}).Infof("[%s] %s", update.Message.From.UserName, update.Message.Text)
+	logger := log.WithFields(log.Fields{"from": update.Message.From.UserName, "id": update.Message.From.ID})
+	logger.Infof("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 	var ans string
 	var found = false
@@ -136,7 +137,7 @@ func (app *App) Process(update tgbotapi.Update) {
 	_, e := app.bot.Send(msg)
 
 	if e != nil {
-		log.Errorf("can't send message: %s", e.Error())
+		logger.Errorf("can't send message: %s", e.Error())
 	}
 }
 

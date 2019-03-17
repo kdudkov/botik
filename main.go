@@ -14,6 +14,11 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	gitRevision string
+	gitBranch   string
+)
+
 type App struct {
 	bot      *tgbotapi.BotAPI
 	exitChan chan bool
@@ -150,7 +155,15 @@ func main() {
 	}
 
 	logger, _ := zap.NewProduction()
-	app := NewApp(logger.Sugar())
+	sl := logger.Sugar()
+	sl.Infof("starting app branch %s, rev %s", gitBranch, gitRevision)
+
+	app := NewApp(sl)
 	app.users = viper.GetStringMapString("users")
+
+	for _, ans := range answers {
+		ans.AddLogger(sl)
+	}
+
 	app.Run()
 }

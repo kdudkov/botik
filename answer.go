@@ -5,11 +5,14 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"go.uber.org/zap"
 )
 
 type Answer interface {
 	Check(user string, msg string) *Q
 	Process(q *Q) string
+	AddLogger(logger *zap.SugaredLogger)
 }
 
 type Q struct {

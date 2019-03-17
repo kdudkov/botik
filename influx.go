@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type Influx struct {
@@ -17,6 +19,7 @@ type Influx struct {
 	db     string
 	days   uint8
 	client *http.Client
+	logger *zap.SugaredLogger
 }
 
 func NewInflux() *Influx {
@@ -30,10 +33,62 @@ func init() {
 	}
 }
 
+func (i *Influx) Debugf(template string, args ...interface{}) {
+	if i.logger != nil {
+		i.logger.Debugf(template, args)
+	}
+}
+
+func (i *Influx) Infof(template string, args ...interface{}) {
+	if i.logger != nil {
+		i.logger.Infof(template, args)
+	}
+}
+
+func (i *Influx) Warnf(template string, args ...interface{}) {
+	if i.logger != nil {
+		i.logger.Warnf(template, args)
+	}
+}
+
+func (i *Influx) Errorf(template string, args ...interface{}) {
+	if i.logger != nil {
+		i.logger.Errorf(template, args)
+	}
+}
+
+func (i *Influx) Debugw(template string, args ...interface{}) {
+	if i.logger != nil {
+		i.logger.Debugw(template, args)
+	}
+}
+
+func (i *Influx) Infow(template string, args ...interface{}) {
+	if i.logger != nil {
+		i.logger.Infow(template, args)
+	}
+}
+
+func (i *Influx) Warnw(template string, args ...interface{}) {
+	if i.logger != nil {
+		i.logger.Warnw(template, args)
+	}
+}
+
+func (i *Influx) Errorw(template string, args ...interface{}) {
+	if i.logger != nil {
+		i.logger.Errorw(template, args)
+	}
+}
+
 type Pressure struct {
 	time time.Time
 	sys  uint16
 	dia  uint16
+}
+
+func (i *Influx) AddLogger(logger *zap.SugaredLogger) {
+	i.logger = logger
 }
 
 func (i *Influx) Check(user string, msg string) (q *Q) {
@@ -63,6 +118,7 @@ func (i *Influx) Process(q *Q) string {
 			}
 			return res
 		} else {
+			i.Errorf("error getting pressure %s", err.Error())
 			return err.Error()
 		}
 	}
@@ -70,13 +126,16 @@ func (i *Influx) Process(q *Q) string {
 	if len(words) == 3 {
 		sys, err := strconv.ParseInt(words[1], 10, 16)
 		if err != nil {
+			i.Errorf("parse error %s", err.Error())
 			return err.Error()
 		}
 		dia, err := strconv.ParseInt(words[2], 10, 16)
 		if err != nil {
+			i.Errorf("parse error %s", err.Error())
 			return err.Error()
 		}
 		if err := i.send(q.User, uint16(sys), uint16(dia)); err != nil {
+			i.Errorf("send error %s", err.Error())
 			return "ошибка " + err.Error()
 		} else {
 			return fmt.Sprintf("записано давление %d/%d", sys, dia)
@@ -87,10 +146,6 @@ func (i *Influx) Process(q *Q) string {
 	return "использование: \"давление\" или \"давление 120 80\""
 }
 
-func FormatTime(t time.Time) string {
-	return fmt.Sprintf("%.2d.%.2d.%.4d %.2d:%.2d", t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute())
-}
-
 func (p *Pressure) String() string {
 	return fmt.Sprintf("%s %d/%d", FormatTime(p.time), p.sys, p.dia)
 }
@@ -99,6 +154,7 @@ func (i *Influx) send(name string, sys uint16, dia uint16) error {
 	url := fmt.Sprintf("http://%s/write?db=%s", i.host, i.db)
 
 	q := fmt.Sprintf("pressure,name=%s sys=%d,dia=%d %d", name, sys, dia, time.Now().UnixNano())
+	i.Debugf("write query %s", q)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(q)))
 
@@ -125,6 +181,7 @@ func (i *Influx) send(name string, sys uint16, dia uint16) error {
 
 	return nil
 }
+
 func (i *Influx) getPressure(name string, limit int) ([]Pressure, error) {
 	res := make([]Pressure, 0)
 	q := fmt.Sprintf("select time, sys, dia from pressure where \"name\"='%s' and time > now() - %dd limit %d", name, i.days, limit)

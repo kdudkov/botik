@@ -13,21 +13,28 @@ const (
 	ALL_ON      = "ALL_ON"
 	ALL_OFF     = "ALL_OFF"
 	NIGHT       = "NIGHT"
+	DAY         = "DAY"
 	NOBODY_HOME = "NOBODY_HOME"
 	STATUS      = "STATUS"
 )
 
-type Light struct{}
+type Light struct {
+	mahno *MahnoApi
+}
 
 func init() {
-	if err := RegisterAnswer("light", &Light{}); err != nil {
+	if err := RegisterAnswer("light", newLight()); err != nil {
 		panic(err.Error())
 	}
 }
 
-func (l *Light) Check(msg string) (q *Q) {
+func newLight() *Light {
+	return &Light{mahno: &MahnoApi{host: "oh.home"}}
+}
+
+func (l *Light) Check(user string, msg string) (q *Q) {
 	m := strings.ToLower(msg)
-	q = &Q{Msg: msg}
+	q = &Q{Msg: msg, User: user}
 
 	words := q.words()
 
@@ -58,6 +65,13 @@ func (l *Light) Check(msg string) (q *Q) {
 		return
 	}
 
+	if s := hasPrefix(m, "день"); s != "" {
+		q.Matched = true
+		q.Prefix = s
+		q.Cmd = DAY
+		return
+	}
+
 	if s := hasPrefix(m, "жди", "все ушли", "один дома"); s != "" {
 		q.Matched = true
 		q.Prefix = s
@@ -65,7 +79,7 @@ func (l *Light) Check(msg string) (q *Q) {
 		return
 	}
 
-	if s := hasPrefix(m, "свет"); s != "" {
+	if s := hasPrefix(m, "свет", "статус"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = STATUS
@@ -87,7 +101,7 @@ func (l *Light) Process(q *Q) string {
 		}
 
 		log.Infof("light %s ON", target)
-		err := ItemCommand(target, ON)
+		err := l.mahno.ItemCommand(target, ON)
 
 		if err != nil {
 			return fmt.Sprintf("ошибка: %s", err.Error())
@@ -100,7 +114,7 @@ func (l *Light) Process(q *Q) string {
 		}
 
 		log.Infof("light %s OFF", target)
-		err := ItemCommand(target, OFF)
+		err := l.mahno.ItemCommand(target, OFF)
 
 		if err != nil {
 			return fmt.Sprintf("ошибка: %s", err.Error())
@@ -108,16 +122,24 @@ func (l *Light) Process(q *Q) string {
 		return fmt.Sprintf("выключаю %s", target)
 
 	case ALL_ON:
-		allLight(ON)
+		allLight(l.mahno, ON)
 		return "включаю весь свет"
 
 	case ALL_OFF:
-		allLight(OFF)
+		allLight(l.mahno, OFF)
 		return "выключаю весь свет"
 
+	case DAY:
+		err := l.mahno.SetItemState("home_mode", "day")
+
+		if err != nil {
+			return fmt.Sprintf("ошибка: %s", err.Error())
+		}
+		return "дневной режим"
+
 	case NIGHT:
-		allLight(OFF)
-		err := ItemState("home_mode", "night")
+		allLight(l.mahno, OFF)
+		err := l.mahno.SetItemState("home_mode", "night")
 
 		if err != nil {
 			return fmt.Sprintf("ошибка: %s", err.Error())
@@ -125,7 +147,7 @@ func (l *Light) Process(q *Q) string {
 		return "ночной режим"
 
 	case NOBODY_HOME:
-		err := ItemState("home_mode", "nobody_home")
+		err := l.mahno.SetItemState("home_mode", "nobody_home")
 
 		if err != nil {
 			return fmt.Sprintf("ошибка: %s", err.Error())
@@ -133,11 +155,27 @@ func (l *Light) Process(q *Q) string {
 		return "режим отсутствия"
 
 	case STATUS:
-		items, err := AllItems()
+		res, err := l.mahno.AllItems()
 		if err != nil {
 			return fmt.Sprintf("ошибка: %s", err.Error())
 		}
-		return ""
+
+		ans := ""
+		for _, i := range res {
+			var pr bool = false
+
+			for _, t := range i.Tags {
+				if t == "light" {
+					pr = true
+					break
+				}
+			}
+
+			if (pr || i.Name == "home_mode") && i.Formatted != nil {
+				ans = fmt.Sprintf("%s\n%s %s", ans, i.Name, i.Formatted)
+			}
+		}
+		return ans
 
 	default:
 		return fmt.Sprintf("не понимаю, что значит %s", q.Msg)
@@ -173,8 +211,8 @@ func getItemName(s string) string {
 	return ""
 }
 
-func allLight(cmd string) {
+func allLight(mahno *MahnoApi, cmd string) {
 	for _, x := range []string{"light_room", "light_corridor", "s20_1", "s20_2"} {
-		ItemCommand(x, cmd)
+		mahno.ItemCommand(x, cmd)
 	}
 }

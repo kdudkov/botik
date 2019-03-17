@@ -5,25 +5,24 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"runtime"
 	"strconv"
 	"time"
 
-	"github.com/go-telegram-bot-api/telegram-bot-api"
-	log "github.com/sirupsen/logrus"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 type App struct {
 	bot      *tgbotapi.BotAPI
 	exitChan chan bool
 	users    map[string]string
+	logger   *zap.SugaredLogger
 }
 
-func NewApp() (app *App) {
-	app = &App{}
-
+func NewApp(logger *zap.SugaredLogger) (app *App) {
+	app = &App{logger: logger}
 	return
 }
 
@@ -31,7 +30,7 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 	app.bot.RemoveWebhook()
 
 	if webhook := viper.GetString("webhook"); webhook != "" {
-		log.Infof("starting webhook %s", webhook)
+		app.logger.Infof("starting webhook %s", webhook)
 
 		res, err := app.bot.SetWebhook(tgbotapi.NewWebhook(webhook))
 
@@ -39,23 +38,23 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 			panic("can't add webhook")
 		}
 
-		log.Info(res.Description)
+		app.logger.Info(res.Description)
 
 		info, err := app.bot.GetWebhookInfo()
 		if err != nil {
-			log.Fatal(err)
+			app.logger.Fatal(err)
 		}
 		if info.LastErrorDate != 0 {
-			log.Infof("Telegram callback failed: %s", info.LastErrorMessage)
+			app.logger.Infof("Telegram callback failed: %s", info.LastErrorMessage)
 		}
 
-		log.Infof("start listener on %s, path %s", viper.GetString("webhook_listen"), viper.GetString("webhook_path"))
+		app.logger.Infof("start listener on %s, path %s", viper.GetString("webhook_listen"), viper.GetString("webhook_path"))
 		go http.ListenAndServe(viper.GetString("webhook_listen"), nil)
 
 		return app.bot.ListenForWebhook(viper.GetString("webhook_path"))
 	}
 
-	log.Info("start polling")
+	app.logger.Info("start polling")
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
@@ -91,7 +90,7 @@ func (app *App) Run() {
 	if err != nil {
 		panic("can't start bot " + err.Error())
 	}
-	log.Infof("registering %s", app.bot.Self.String())
+	app.logger.Infof("registering %s", app.bot.Self.String())
 
 	updates := app.GetUpdatesChannel()
 
@@ -113,22 +112,22 @@ func (app *App) Process(update tgbotapi.Update) {
 		return
 	}
 
-	logger := log.WithFields(log.Fields{"from": update.Message.From.UserName, "id": update.Message.From.ID})
+	logger := app.logger.With("from", update.Message.From.UserName, "id", update.Message.From.ID)
 	logger.Infof("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 	var ans string
-	var found = false
-	for _, id := range app.users {
+	var user string
+	for u, id := range app.users {
 		if id == strconv.Itoa(update.Message.From.ID) {
-			found = true
+			user = u
 			break
 		}
 	}
 
-	if !found {
+	if user == "" {
 		ans = "с незнакомыми не разговариваю"
 	} else {
-		ans = CheckAnswer(update.Message.Text)
+		ans = CheckAnswer(user, update.Message.Text)
 	}
 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, ans)
@@ -142,9 +141,6 @@ func (app *App) Process(update tgbotapi.Update) {
 }
 
 func main() {
-	log.SetOutput(os.Stdout)
-	log.SetLevel(log.InfoLevel)
-
 	viper.SetConfigName("botik")
 	viper.AddConfigPath(".")
 	err := viper.ReadInConfig()
@@ -153,7 +149,8 @@ func main() {
 		panic(fmt.Errorf("Fatal error config file: %s \n", err))
 	}
 
-	app := NewApp()
+	logger, _ := zap.NewProduction()
+	app := NewApp(logger.Sugar())
 	app.users = viper.GetStringMapString("users")
 	app.Run()
 }

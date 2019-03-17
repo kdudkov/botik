@@ -8,7 +8,7 @@ import (
 )
 
 type Answer interface {
-	Check(msg string) *Q
+	Check(user string, msg string) *Q
 	Process(q *Q) string
 }
 
@@ -17,6 +17,7 @@ type Q struct {
 	Prefix  string
 	Cmd     string
 	Matched bool
+	User    string
 }
 
 func (q *Q) short() string {
@@ -41,10 +42,10 @@ func RegisterAnswer(name string, ans Answer) error {
 	return nil
 }
 
-func CheckAnswer(msg string) string {
+func CheckAnswer(user string, msg string) string {
 	for _, ans := range answers {
 
-		if q := ans.Check(msg); q.Matched {
+		if q := ans.Check(user, msg); q.Matched {
 			return ans.Process(q)
 		}
 	}

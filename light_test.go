@@ -12,7 +12,7 @@ func TestLightCheck(t *testing.T) {
 	l := Light{}
 
 	for _, s := range []string{"выключить всь свет", "выключи свет везде", "включи свет на кухне"} {
-		q := l.Check(s)
+		q := l.Check("", s)
 		assert.Truef(q.Matched, "must work on %s", s)
 	}
 }

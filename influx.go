@@ -32,52 +32,12 @@ func init() {
 	}
 }
 
-func (i *Influx) Debugf(template string, args ...interface{}) {
-	if i.logger != nil {
-		i.logger.Debugf(template, args)
-	}
+func (x *Influx) Logf(level int8, template string, args ...interface{}) {
+	Logf(x.logger, level, template, args)
 }
 
-func (i *Influx) Infof(template string, args ...interface{}) {
-	if i.logger != nil {
-		i.logger.Infof(template, args)
-	}
-}
-
-func (i *Influx) Warnf(template string, args ...interface{}) {
-	if i.logger != nil {
-		i.logger.Warnf(template, args)
-	}
-}
-
-func (i *Influx) Errorf(template string, args ...interface{}) {
-	if i.logger != nil {
-		i.logger.Errorf(template, args)
-	}
-}
-
-func (i *Influx) Debugw(template string, args ...interface{}) {
-	if i.logger != nil {
-		i.logger.Debugw(template, args)
-	}
-}
-
-func (i *Influx) Infow(template string, args ...interface{}) {
-	if i.logger != nil {
-		i.logger.Infow(template, args)
-	}
-}
-
-func (i *Influx) Warnw(template string, args ...interface{}) {
-	if i.logger != nil {
-		i.logger.Warnw(template, args)
-	}
-}
-
-func (i *Influx) Errorw(template string, args ...interface{}) {
-	if i.logger != nil {
-		i.logger.Errorw(template, args)
-	}
+func (x *Influx) Logw(level int8, template string, args ...interface{}) {
+	Logw(x.logger, level, template, args)
 }
 
 type Pressure struct {
@@ -126,7 +86,7 @@ func (i *Influx) Process(q *Q) string {
 				}
 				return res
 			} else {
-				i.Errorf("error getting pressure %s", err.Error())
+				i.Logf(LOG_ERROR, "error getting pressure %s", err.Error())
 				return err.Error()
 			}
 		}
@@ -134,16 +94,16 @@ func (i *Influx) Process(q *Q) string {
 		if len(words) == 3 {
 			sys, err := strconv.ParseInt(words[1], 10, 16)
 			if err != nil {
-				i.Errorf("parse error %s", err.Error())
+				i.Logf(LOG_ERROR, "parse error %s", err.Error())
 				return err.Error()
 			}
 			dia, err := strconv.ParseInt(words[2], 10, 16)
 			if err != nil {
-				i.Errorf("parse error %s", err.Error())
+				i.Logf(LOG_ERROR, "parse error %s", err.Error())
 				return err.Error()
 			}
 			if err := i.sendBP(q.User, uint16(sys), uint16(dia)); err != nil {
-				i.Errorf("send error %s", err.Error())
+				i.Logf(LOG_ERROR, "send error %s", err.Error())
 				return "ошибка " + err.Error()
 			} else {
 				return fmt.Sprintf("записано давление %d/%d", sys, dia)
@@ -157,11 +117,11 @@ func (i *Influx) Process(q *Q) string {
 		if len(words) == 2 {
 			w, err := strconv.ParseFloat(strings.ReplaceAll(words[1], ",", "."), 10)
 			if err != nil {
-				i.Errorf("parse error %s", err.Error())
+				i.Logf(LOG_ERROR, "parse error %s", err.Error())
 				return err.Error()
 			}
 			if err := i.sendWeight(q.User, w, 0); err != nil {
-				i.Errorf("send error %s", err.Error())
+				i.Logf(LOG_ERROR, "send error %s", err.Error())
 				return "ошибка " + err.Error()
 			} else {
 				return fmt.Sprintf("записан вес %.1f", w)

@@ -41,52 +41,12 @@ func (l *Light) AddLogger(logger *zap.SugaredLogger) {
 	l.mahno.SetLogger(logger)
 }
 
-func (x *Light) Debugf(template string, args ...interface{}) {
-	if x.logger != nil {
-		x.logger.Debugf(template, args)
-	}
+func (x *Light) Logf(level int8, template string, args ...interface{}) {
+	Logf(x.logger, level, template, args)
 }
 
-func (x *Light) Infof(template string, args ...interface{}) {
-	if x.logger != nil {
-		x.logger.Infof(template, args)
-	}
-}
-
-func (x *Light) Warnf(template string, args ...interface{}) {
-	if x.logger != nil {
-		x.logger.Warnf(template, args)
-	}
-}
-
-func (x *Light) Errorf(template string, args ...interface{}) {
-	if x.logger != nil {
-		x.logger.Errorf(template, args)
-	}
-}
-
-func (x *Light) Debugw(template string, args ...interface{}) {
-	if x.logger != nil {
-		x.logger.Debugw(template, args)
-	}
-}
-
-func (x *Light) Infow(template string, args ...interface{}) {
-	if x.logger != nil {
-		x.logger.Infow(template, args)
-	}
-}
-
-func (x *Light) Warnw(template string, args ...interface{}) {
-	if x.logger != nil {
-		x.logger.Warnw(template, args)
-	}
-}
-
-func (x *Light) Errorw(template string, args ...interface{}) {
-	if x.logger != nil {
-		x.logger.Errorw(template, args)
-	}
+func (x *Light) Logw(level int8, template string, args ...interface{}) {
+	Logw(x.logger, level, template, args)
 }
 
 func (l *Light) Check(user string, msg string) (q *Q) {
@@ -157,7 +117,7 @@ func (l *Light) Process(q *Q) string {
 			return fmt.Sprintf("не понимаю %s", q.Msg)
 		}
 
-		l.Infof("light %s ON", target)
+		l.Logf(LOG_INFO, "light %s ON", target)
 		err := l.mahno.ItemCommand(target, ON)
 
 		if err != nil {
@@ -170,7 +130,7 @@ func (l *Light) Process(q *Q) string {
 			return fmt.Sprintf("не понимаю %s", q.Msg)
 		}
 
-		l.Infof("light %s OFF", target)
+		l.Logf(LOG_INFO, "light %s OFF", target)
 		err := l.mahno.ItemCommand(target, OFF)
 
 		if err != nil {
@@ -179,17 +139,17 @@ func (l *Light) Process(q *Q) string {
 		return fmt.Sprintf("выключаю %s", target)
 
 	case ALL_ON:
-		l.Infof("all lights on")
+		l.Logf(LOG_INFO, "all lights on")
 		allLight(l.mahno, ON)
 		return "включаю весь свет"
 
 	case ALL_OFF:
-		l.Infof("all lights off")
+		l.Logf(LOG_INFO, "all lights off")
 		allLight(l.mahno, OFF)
 		return "выключаю весь свет"
 
 	case DAY:
-		l.Infof("home mode day")
+		l.Logf(LOG_INFO, "home mode day")
 		err := l.mahno.SetItemState("home_mode", "day")
 
 		if err != nil {
@@ -198,7 +158,7 @@ func (l *Light) Process(q *Q) string {
 		return "дневной режим"
 
 	case NIGHT:
-		l.Infof("home mode night")
+		l.Logf(LOG_INFO, "home mode night")
 		allLight(l.mahno, OFF)
 		err := l.mahno.SetItemState("home_mode", "night")
 
@@ -208,7 +168,7 @@ func (l *Light) Process(q *Q) string {
 		return "ночной режим"
 
 	case NOBODY_HOME:
-		l.Infof("home mode nobody")
+		l.Logf(LOG_INFO, "home mode nobody")
 		err := l.mahno.SetItemState("home_mode", "nobody_home")
 
 		if err != nil {

@@ -32,6 +32,10 @@ func init() {
 	}
 }
 
+func getNano() int64 {
+	return time.Now().Round(time.Minute).UnixNano()
+}
+
 func (x *Influx) Logf(level int8, template string, args ...interface{}) {
 	Logf(x.logger, level, template, args)
 }
@@ -91,7 +95,9 @@ func (i *Influx) Process(q *Q) string {
 			}
 		}
 
-		if len(words) == 3 {
+		if len(words) >= 3 {
+			var note string
+
 			sys, err := strconv.ParseInt(words[1], 10, 16)
 			if err != nil {
 				i.Logf(LOG_ERROR, "parse error %s", err.Error())
@@ -102,7 +108,10 @@ func (i *Influx) Process(q *Q) string {
 				i.Logf(LOG_ERROR, "parse error %s", err.Error())
 				return err.Error()
 			}
-			if err := i.sendBP(q.User, uint16(sys), uint16(dia)); err != nil {
+			if len(words) > 3 {
+				note = strings.Join(words[4:], " ")
+			}
+			if err := i.sendBP(q.User, uint16(sys), uint16(dia), note); err != nil {
 				i.Logf(LOG_ERROR, "send error %s", err.Error())
 				return "ошибка " + err.Error()
 			} else {
@@ -139,8 +148,14 @@ func (p *Pressure) String() string {
 	return fmt.Sprintf("%s %d/%d", FormatTime(p.time), p.sys, p.dia)
 }
 
-func (i *Influx) sendBP(name string, sys uint16, dia uint16) error {
-	q := fmt.Sprintf("pressure,name=%s sys=%d,dia=%d %d", name, sys, dia, time.Now().UnixNano())
+func (i *Influx) sendBP(name string, sys uint16, dia uint16, note string) error {
+	q := fmt.Sprintf("pressure,name=%s sys=%d,dia=%d", name, sys, dia)
+
+	if note != "" {
+		q += ",note=\"" + note + "\""
+	}
+
+	q += fmt.Sprintf(" %d", getNano())
 	return i.api.Send(q)
 }
 
@@ -150,7 +165,7 @@ func (i *Influx) sendWeight(name string, w float64, fat float64) error {
 		q += fmt.Sprintf(",fat=%f", fat)
 	}
 
-	q += fmt.Sprintf(" %d", time.Now().UnixNano())
+	q += fmt.Sprintf(" %d", getNano())
 	return i.api.Send(q)
 }
 

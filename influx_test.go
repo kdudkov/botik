@@ -19,11 +19,12 @@ func (i *MockInflux) GetData(q string, fn convert) error {
 	return nil
 }
 
+var (
+	mock = &MockInflux{}
+	l    = &Influx{api: mock}
+)
+
 func TestInfluxSendWeight(t *testing.T) {
-	mock := &MockInflux{}
-
-	l := &Influx{api: mock}
-
 	var q *Q
 	var words []string
 
@@ -69,10 +70,6 @@ func TestInfluxSendWeight(t *testing.T) {
 }
 
 func TestInfluxSendBPt(t *testing.T) {
-	mock := &MockInflux{}
-
-	l := &Influx{api: mock}
-
 	var q *Q
 
 	q = l.Check("user", "Давление 120 70")
@@ -90,10 +87,6 @@ func TestInfluxSendBPt(t *testing.T) {
 }
 
 func TestInfluxSendBPtNote(t *testing.T) {
-	mock := &MockInflux{}
-
-	l := &Influx{api: mock}
-
 	var q *Q
 
 	q = l.Check("user", "Давление 120 70 и всё круто")

@@ -1,12 +1,8 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -20,16 +16,14 @@ const (
 )
 
 type Influx struct {
-	host   string
-	db     string
-	days   uint8
-	client *http.Client
+	api    InfluxHttpApi
 	logger *zap.SugaredLogger
+	days   uint16
 }
 
 func NewInflux() *Influx {
 	client := &http.Client{Timeout: time.Second * 5}
-	return &Influx{host: "oh.home:8086", db: "bio", days: 10, client: client}
+	return &Influx{api: &InfluxApi{host: "oh.home:8086", db: "bio", client: client}, days: 10}
 }
 
 func init() {
@@ -161,7 +155,7 @@ func (i *Influx) Process(q *Q) string {
 
 	case WEIGHT:
 		if len(words) == 2 {
-			w, err := strconv.ParseFloat(words[1], 10)
+			w, err := strconv.ParseFloat(strings.ReplaceAll(words[1], ",", "."), 10)
 			if err != nil {
 				i.Errorf("parse error %s", err.Error())
 				return err.Error()
@@ -187,7 +181,7 @@ func (p *Pressure) String() string {
 
 func (i *Influx) sendBP(name string, sys uint16, dia uint16) error {
 	q := fmt.Sprintf("pressure,name=%s sys=%d,dia=%d %d", name, sys, dia, time.Now().UnixNano())
-	return i.send(q)
+	return i.api.Send(q)
 }
 
 func (i *Influx) sendWeight(name string, w float64, fat float64) error {
@@ -197,83 +191,20 @@ func (i *Influx) sendWeight(name string, w float64, fat float64) error {
 	}
 
 	q += fmt.Sprintf(" %d", time.Now().UnixNano())
-	return i.send(q)
-}
-
-func (i *Influx) send(q string) error {
-	url := fmt.Sprintf("http://%s/write?db=%s", i.host, i.db)
-
-	i.Debugf("write query %s", q)
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(q)))
-
-	if err != nil {
-		return err
-	}
-
-	resp, err := i.client.Do(req)
-
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 && resp.StatusCode != 204 {
-		s, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		} else {
-			return fmt.Errorf("%s", s)
-		}
-	}
-
-	return nil
+	return i.api.Send(q)
 }
 
 func (i *Influx) getPressure(name string, limit int) ([]Pressure, error) {
 	res := make([]Pressure, 0)
 	q := fmt.Sprintf("select time, sys, dia from pressure where \"name\"='%s' and time > now() - %dd limit %d", name, i.days, limit)
-	params := url.Values{}
-	params.Add("epoch", "s")
-	params.Add("db", i.db)
-	params.Add("q", q)
 
-	url := fmt.Sprintf("http://%s/query?%s", i.host, params.Encode())
-
-	fmt.Println(url)
-
-	req, err := http.NewRequest("GET", url, nil)
-
-	if err != nil {
-		return res, err
-	}
-
-	req.Header.Set("Accept", "application/csv")
-
-	resp, err := i.client.Do(req)
-
-	if err != nil {
-		return res, err
-	}
-
-	defer resp.Body.Close()
-
-	r := bufio.NewReader(resp.Body)
-
-	for true {
-		l, _, err := r.ReadLine()
-		if l != nil {
-			if p, ok := parseSring(string(l)); ok {
-				res = append(res, p)
-			}
+	err := i.api.GetData(q, func(s string) {
+		if p, ok := parseSring(s); ok {
+			res = append(res, p)
 		}
-		if err != nil {
-			break
-		}
-	}
+	})
 
-	return res, nil
+	return res, err
 }
 
 func parseSring(s string) (Pressure, bool) {
@@ -286,11 +217,13 @@ func parseSring(s string) (Pressure, bool) {
 			return p, false
 		}
 		p.time = time.Unix(d, 0)
+
 		d, err = strconv.ParseInt(ss[3], 10, 16)
 		if err != nil {
 			return p, false
 		}
 		p.sys = uint16(d)
+
 		d, err = strconv.ParseInt(ss[4], 10, 16)
 		if err != nil {
 			return p, false
@@ -298,5 +231,6 @@ func parseSring(s string) (Pressure, bool) {
 		p.dia = uint16(d)
 		return p, true
 	}
+
 	return p, false
 }

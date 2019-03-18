@@ -14,6 +14,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	BP     = "bp"
+	WEIGHT = "weight"
+)
+
 type Influx struct {
 	host   string
 	db     string
@@ -99,7 +104,14 @@ func (i *Influx) Check(user string, msg string) (q *Q) {
 	if words[0] == "давление" {
 		q.Matched = true
 		q.Prefix = "давление"
-		q.Cmd = ""
+		q.Cmd = BP
+		return
+	}
+
+	if words[0] == "вес" {
+		q.Matched = true
+		q.Prefix = "вес"
+		q.Cmd = WEIGHT
 		return
 	}
 
@@ -109,51 +121,88 @@ func (i *Influx) Check(user string, msg string) (q *Q) {
 func (i *Influx) Process(q *Q) string {
 	words := q.words()
 
-	if len(words) == 1 {
-		p, err := i.getPressure(q.User, 50)
-		if err == nil {
-			res := fmt.Sprintf("Давление за последние %d дней для %s\n\n", i.days, q.User)
-			for _, pp := range p {
-				res += pp.String() + "\n"
+	switch q.Cmd {
+	case BP:
+		if len(words) == 1 {
+			p, err := i.getPressure(q.User, 50)
+			if err == nil {
+				res := fmt.Sprintf("Давление за последние %d дней для %s\n\n", i.days, q.User)
+				for _, pp := range p {
+					res += pp.String() + "\n"
+				}
+				return res
+			} else {
+				i.Errorf("error getting pressure %s", err.Error())
+				return err.Error()
 			}
-			return res
-		} else {
-			i.Errorf("error getting pressure %s", err.Error())
-			return err.Error()
 		}
+
+		if len(words) == 3 {
+			sys, err := strconv.ParseInt(words[1], 10, 16)
+			if err != nil {
+				i.Errorf("parse error %s", err.Error())
+				return err.Error()
+			}
+			dia, err := strconv.ParseInt(words[2], 10, 16)
+			if err != nil {
+				i.Errorf("parse error %s", err.Error())
+				return err.Error()
+			}
+			if err := i.sendBP(q.User, uint16(sys), uint16(dia)); err != nil {
+				i.Errorf("send error %s", err.Error())
+				return "ошибка " + err.Error()
+			} else {
+				return fmt.Sprintf("записано давление %d/%d", sys, dia)
+			}
+
+		}
+
+		return "использование: \"давление\" или \"давление 120 80\""
+
+	case WEIGHT:
+		if len(words) == 2 {
+			w, err := strconv.ParseFloat(words[1], 10)
+			if err != nil {
+				i.Errorf("parse error %s", err.Error())
+				return err.Error()
+			}
+			if err := i.sendWeight(q.User, w, 0); err != nil {
+				i.Errorf("send error %s", err.Error())
+				return "ошибка " + err.Error()
+			} else {
+				return fmt.Sprintf("записан вес %.1f", w)
+			}
+
+		}
+		return "использование: \"вес \" или \"вес 95.2\""
+
+	default:
+		return "invalid command " + q.Cmd
 	}
-
-	if len(words) == 3 {
-		sys, err := strconv.ParseInt(words[1], 10, 16)
-		if err != nil {
-			i.Errorf("parse error %s", err.Error())
-			return err.Error()
-		}
-		dia, err := strconv.ParseInt(words[2], 10, 16)
-		if err != nil {
-			i.Errorf("parse error %s", err.Error())
-			return err.Error()
-		}
-		if err := i.send(q.User, uint16(sys), uint16(dia)); err != nil {
-			i.Errorf("send error %s", err.Error())
-			return "ошибка " + err.Error()
-		} else {
-			return fmt.Sprintf("записано давление %d/%d", sys, dia)
-		}
-
-	}
-
-	return "использование: \"давление\" или \"давление 120 80\""
 }
 
 func (p *Pressure) String() string {
 	return fmt.Sprintf("%s %d/%d", FormatTime(p.time), p.sys, p.dia)
 }
 
-func (i *Influx) send(name string, sys uint16, dia uint16) error {
+func (i *Influx) sendBP(name string, sys uint16, dia uint16) error {
+	q := fmt.Sprintf("pressure,name=%s sys=%d,dia=%d %d", name, sys, dia, time.Now().UnixNano())
+	return i.send(q)
+}
+
+func (i *Influx) sendWeight(name string, w float64, fat float64) error {
+	q := fmt.Sprintf("weight,name=%s weight=%f", name, w)
+	if fat != 0 {
+		q += fmt.Sprintf(",fat=%f", fat)
+	}
+
+	q += fmt.Sprintf(" %d", time.Now().UnixNano())
+	return i.send(q)
+}
+
+func (i *Influx) send(q string) error {
 	url := fmt.Sprintf("http://%s/write?db=%s", i.host, i.db)
 
-	q := fmt.Sprintf("pressure,name=%s sys=%d,dia=%d %d", name, sys, dia, time.Now().UnixNano())
 	i.Debugf("write query %s", q)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(q)))

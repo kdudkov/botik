@@ -29,7 +29,8 @@ func (q *Q) short() string {
 
 func (q *Q) words() []string {
 	return strings.FieldsFunc(strings.ToLower(q.Msg), func(r rune) bool {
-		return unicode.IsSpace(r) || unicode.IsPunct(r)
+		//return unicode.IsSpace(r) || unicode.IsPunct(r)
+		return unicode.IsSpace(r)
 	})
 }
 

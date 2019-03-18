@@ -21,7 +21,7 @@ const (
 )
 
 type Light struct {
-	mahno  *MahnoApi
+	mahno  MahnoApi
 	logger *zap.SugaredLogger
 }
 
@@ -33,12 +33,12 @@ func init() {
 
 func NewLight() *Light {
 	client := &http.Client{Timeout: time.Second * 5}
-	return &Light{mahno: &MahnoApi{host: "oh.home", client: client}}
+	return &Light{mahno: &MahnoHttpApi{host: "oh.home", client: client}}
 }
 
 func (l *Light) AddLogger(logger *zap.SugaredLogger) {
 	l.logger = logger
-	l.mahno.logger = logger
+	l.mahno.SetLogger(logger)
 }
 
 func (x *Light) Debugf(template string, args ...interface{}) {
@@ -223,7 +223,7 @@ func (l *Light) Process(q *Q) string {
 		}
 
 		ans := ""
-		for _, i := range res {
+		for _, i := range *res {
 			var pr bool = false
 
 			for _, t := range i.Tags {
@@ -273,7 +273,7 @@ func getItemName(s string) string {
 	return ""
 }
 
-func allLight(mahno *MahnoApi, cmd string) {
+func allLight(mahno MahnoApi, cmd string) {
 	for _, x := range []string{"light_room", "light_corridor", "s20_1", "s20_2"} {
 		mahno.ItemCommand(x, cmd)
 	}

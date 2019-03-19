@@ -98,7 +98,7 @@ func TestInfluxSendBPtNote(t *testing.T) {
 	l.Process(q)
 	fmt.Println(mock.result)
 
-	if !strings.HasPrefix(mock.result, "pressure,name=user sys=120,dia=70,note=\"всё круто\" ") {
+	if !strings.HasPrefix(mock.result, "pressure,name=user sys=120,dia=70,note=\"и всё круто\" ") {
 		t.Errorf("bad send %s", mock.result)
 	}
 }

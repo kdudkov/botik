@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"io/ioutil"
 	"strconv"
@@ -25,14 +24,16 @@ func SendHandlerFunc(app *App) air.Handler {
 		name := req.Param("NAME")
 
 		if name == nil {
-			return fmt.Errorf("nil name")
+			app.logger.Errorf("nil name")
+			return air.DefaultNotFoundHandler(req, res)
 		}
 
 		if ids, ok := app.users[name.Value().String()]; ok {
 			id, err := strconv.ParseInt(ids, 10, 64)
 
 			if err != nil {
-				return err
+				app.logger.Errorf("can't parse int %s", ids)
+				return nil
 			}
 
 			body, err := ioutil.ReadAll(req.Body)

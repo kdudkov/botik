@@ -41,9 +41,7 @@ func SendHandlerFunc(app *App) air.Handler {
 				app.logger.Errorf("can't read body: %s", err.Error())
 			}
 
-			msg := tgbotapi.NewMessage(id, string(body))
-
-			//msg.ReplyToMessageID = update.Message.MessageID
+			msg := tgbotapi.NewMessage(id, "* "+string(body))
 
 			_, err = app.bot.Send(msg)
 

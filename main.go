@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
@@ -167,6 +167,8 @@ func main() {
 
 	app := NewApp(sl)
 	app.users = viper.GetStringMapString("users")
+
+	go runHttpServer(app)
 
 	for _, ans := range answers {
 		ans.AddLogger(sl)

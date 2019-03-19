@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"io/ioutil"
 	"strconv"
 
 	"github.com/aofei/air"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
 func runHttpServer(app *App) {
@@ -37,6 +37,7 @@ func SendHandlerFunc(app *App) air.Handler {
 				return nil
 			}
 
+			logger := app.logger.With("to", name, "id", id)
 			body, _ := ioutil.ReadAll(req.Body)
 
 			if body == nil || len(body) == 0 {
@@ -44,20 +45,21 @@ func SendHandlerFunc(app *App) air.Handler {
 				return nil
 			}
 
-			app.logger.Infof("send message to %d, text \"%s\"", id, string(body))
+			logger.Infof("message \"%s\"", string(body))
 
 			go func(s string) {
 				msg := tgbotapi.NewMessage(id, s)
 				_, err = app.bot.Send(msg)
 
 				if err != nil {
-					app.logger.Errorf("can't send message: %s", err.Error())
+					logger.Errorf("can't send message: %s", err.Error())
 				}
 			}(string(body))
 
 			_ = res.WriteString("message is sent")
 
 		} else {
+			app.logger.Warnf("user not found: %s", name)
 			return air.DefaultNotFoundHandler(req, res)
 		}
 

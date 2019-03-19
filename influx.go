@@ -109,7 +109,7 @@ func (i *Influx) Process(q *Q) string {
 				return err.Error()
 			}
 			if len(words) > 3 {
-				note = strings.Join(words[4:], " ")
+				note = strings.Join(words[3:], " ")
 			}
 			if err := i.sendBP(q.User, uint16(sys), uint16(dia), note); err != nil {
 				i.Logf(LOG_ERROR, "send error %s", err.Error())

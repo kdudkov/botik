@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-telegram-bot-api/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
@@ -83,7 +83,7 @@ func (app *App) Run() {
 	if proxy := viper.GetString("proxy"); proxy != "" {
 		proxyUrl, _ := url.Parse(proxy)
 		myClient := &http.Client{Transport: &http.Transport{
-			Proxy:                 http.ProxyURL(proxyUrl),
+			Proxy: http.ProxyURL(proxyUrl),
 			ResponseHeaderTimeout: time.Second * 30,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		}}
@@ -130,6 +130,7 @@ func (app *App) Process(update tgbotapi.Update) {
 	}
 
 	if user == "" {
+		logger.Infof("invalid user %s", update.Message.From.UserName)
 		ans = "с незнакомыми не разговариваю"
 	} else {
 		ans = CheckAnswer(user, update.Message.Text)

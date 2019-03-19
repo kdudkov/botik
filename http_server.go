@@ -15,7 +15,7 @@ func setHandlers(a *air.Air, app *App) {
 
 func runHttpServer(app *App) {
 	a := air.Default
-	a.Address = "8055"
+	a.Address = ":8055"
 
 	if err := a.Serve(); err != nil {
 		app.logger.Errorf("server error: %v", err)

@@ -37,16 +37,17 @@ func SendHandlerFunc(app *App) air.Handler {
 				return nil
 			}
 
-			body, err := ioutil.ReadAll(req.Body)
+			body, _ := ioutil.ReadAll(req.Body)
 
-			if err != nil {
-				app.logger.Errorf("can't read body: %s", err.Error())
+			if body == nil || len(body) == 0 {
+				_ = res.WriteString("empty body")
+				return nil
 			}
 
-			app.logger.Infof("send message to %d, text %s", id, string(body))
+			app.logger.Infof("send message to %d, text \"%s\"", id, string(body))
 
 			go func(s string) {
-				msg := tgbotapi.NewMessage(id, "* "+s)
+				msg := tgbotapi.NewMessage(id, s)
 				_, err = app.bot.Send(msg)
 
 				if err != nil {
@@ -54,7 +55,7 @@ func SendHandlerFunc(app *App) air.Handler {
 				}
 			}(string(body))
 
-			res.WriteString("message is sent")
+			_ = res.WriteString("message is sent")
 
 		} else {
 			return air.DefaultNotFoundHandler(req, res)

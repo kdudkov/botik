@@ -83,7 +83,7 @@ func (app *App) Run() {
 	if proxy := viper.GetString("proxy"); proxy != "" {
 		proxyUrl, _ := url.Parse(proxy)
 		myClient := &http.Client{Transport: &http.Transport{
-			Proxy: http.ProxyURL(proxyUrl),
+			Proxy:                 http.ProxyURL(proxyUrl),
 			ResponseHeaderTimeout: time.Second * 30,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		}}
@@ -154,7 +154,14 @@ func main() {
 		panic(fmt.Errorf("Fatal error config file: %s \n", err))
 	}
 
-	logger, _ := zap.NewProduction()
+	config := zap.NewProductionConfig()
+	config.Encoding = "console"
+	logger, err := config.Build()
+
+	if err != nil {
+		panic(err.Error())
+	}
+
 	sl := logger.Sugar()
 	sl.Infof("starting app branch %s, rev %s", gitBranch, gitRevision)
 

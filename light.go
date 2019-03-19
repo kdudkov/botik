@@ -183,7 +183,7 @@ func (l *Light) Process(q *Q) string {
 		}
 
 		ans := ""
-		for _, i := range *res {
+		for _, i := range res {
 			var pr bool = false
 
 			for _, t := range i.Tags {

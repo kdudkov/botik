@@ -12,10 +12,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	host = "oh.home"
-)
-
 type Item struct {
 	ClassName string      `json:"class"`
 	Name      string      `json:"name"`
@@ -35,7 +31,7 @@ type Item struct {
 type MahnoApi interface {
 	ItemCommand(item string, cmd string) error
 	SetItemState(item string, val string) error
-	AllItems() (*[]Item, error)
+	AllItems() ([]Item, error)
 	SetLogger(logger *zap.SugaredLogger)
 }
 
@@ -127,7 +123,7 @@ func (m *MahnoHttpApi) SetItemState(item string, val string) error {
 	return nil
 }
 
-func (m *MahnoHttpApi) AllItems() (*[]Item, error) {
+func (m *MahnoHttpApi) AllItems() ([]Item, error) {
 	body, err := m.doReqReader("GET", "/items", "")
 
 	if err != nil {
@@ -144,5 +140,5 @@ func (m *MahnoHttpApi) AllItems() (*[]Item, error) {
 		return nil, err
 	}
 
-	return &res, nil
+	return res, nil
 }

@@ -9,13 +9,11 @@ import (
 	"github.com/aofei/air"
 )
 
-func setHandlers(a *air.Air, app *App) {
-	a.POST("/send/:NAME", SendHandlerFunc(app))
-}
-
 func runHttpServer(app *App) {
 	a := air.Default
 	a.Address = ":8055"
+
+	a.POST("/send/:NAME", SendHandlerFunc(app))
 
 	if err := a.Serve(); err != nil {
 		app.logger.Errorf("server error: %v", err)

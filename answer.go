@@ -28,10 +28,15 @@ func (q *Q) short() string {
 }
 
 func (q *Q) words() []string {
-	return strings.FieldsFunc(strings.ToLower(q.Msg), func(r rune) bool {
+	res := strings.FieldsFunc(strings.ToLower(q.Msg), func(r rune) bool {
 		//return unicode.IsSpace(r) || unicode.IsPunct(r)
 		return unicode.IsSpace(r)
 	})
+
+	for i, s := range res {
+		res[i] = strings.Trim(s, " \t\n\r!?.,;:")
+	}
+	return res
 }
 
 var answers = make(map[string]Answer, 0)

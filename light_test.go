@@ -3,11 +3,11 @@ package main
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	testify_assert "github.com/stretchr/testify/assert"
 )
 
 func TestLightCheck(t *testing.T) {
-	assert := assert.New(t)
+	assert := testify_assert.New(t)
 
 	l := Light{}
 
@@ -18,7 +18,7 @@ func TestLightCheck(t *testing.T) {
 }
 
 func TestPrefix(t *testing.T) {
-	assert := assert.New(t)
+	assert := testify_assert.New(t)
 
 	s := hasPrefix("aa bb cc dd", "aa", "aa bb cc", "aa bb")
 	assert.Equal("aa bb cc", s, "wrong prefix")

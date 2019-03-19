@@ -20,6 +20,7 @@ func runHttpServer(app *App) {
 }
 
 func SendHandlerFunc(app *App) air.Handler {
+
 	return func(req *air.Request, res *air.Response) error {
 		name := req.Param("NAME")
 
@@ -36,21 +37,25 @@ func SendHandlerFunc(app *App) air.Handler {
 				return nil
 			}
 
-			defer req.HTTPRequest().Body.Close()
-
-			body, err := ioutil.ReadAll(req.HTTPRequest().Body)
+			body, err := ioutil.ReadAll(req.Body)
 
 			if err != nil {
 				app.logger.Errorf("can't read body: %s", err.Error())
 			}
 
-			msg := tgbotapi.NewMessage(id, "* "+string(body))
+			app.logger.Infof("send message to %d, text %s", id, string(body))
 
-			_, err = app.bot.Send(msg)
+			go func(s string) {
+				msg := tgbotapi.NewMessage(id, "* "+s)
+				_, err = app.bot.Send(msg)
 
-			if err != nil {
-				app.logger.Errorf("can't send message: %s", err.Error())
-			}
+				if err != nil {
+					app.logger.Errorf("can't send message: %s", err.Error())
+				}
+			}(string(body))
+
+			res.WriteString("message is sent")
+
 		} else {
 			return air.DefaultNotFoundHandler(req, res)
 		}

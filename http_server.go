@@ -36,7 +36,10 @@ func SendHandlerFunc(app *App) air.Handler {
 				return nil
 			}
 
-			body, err := ioutil.ReadAll(req.Body)
+			defer req.HTTPRequest().Body.Close()
+
+			body, err := ioutil.ReadAll(req.HTTPRequest().Body)
+
 			if err != nil {
 				app.logger.Errorf("can't read body: %s", err.Error())
 			}

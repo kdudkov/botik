@@ -45,6 +45,12 @@ func SendHandlerFunc(app *App) air.Handler {
 				return nil
 			}
 
+			if app.bot == nil {
+				logger.Warnf("bot is not ready")
+				_ = res.WriteString("bot is not connected")
+				return nil
+			}
+
 			logger.Infof("message \"%s\"", string(body))
 
 			go func(s string) {

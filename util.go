@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -45,4 +46,13 @@ func Logw(logger *zap.SugaredLogger, level int8, template string, args ...interf
 			logger.Errorw(template, args)
 		}
 	}
+}
+
+func IsInArray(str string, array []string) bool {
+	for _, s1 := range array {
+		if str == s1 {
+			return true
+		}
+	}
+	return false
 }

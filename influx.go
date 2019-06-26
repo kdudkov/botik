@@ -59,16 +59,16 @@ func (i *Influx) Check(user string, msg string) (q *Q) {
 
 	words := q.words()
 
-	if words[0] == "давление" {
+	if IsInArray(words[0], []string{"давление", "/bp"}) {
 		q.Matched = true
-		q.Prefix = "давление"
+		q.Prefix = words[0]
 		q.Cmd = BP
 		return
 	}
 
-	if words[0] == "вес" {
+	if IsInArray(words[0], []string{"вес", "/weight"}) {
 		q.Matched = true
-		q.Prefix = "вес"
+		q.Prefix = words[0]
 		q.Cmd = WEIGHT
 		return
 	}

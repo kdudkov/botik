@@ -23,6 +23,7 @@ type App struct {
 	bot      *tgbotapi.BotAPI
 	exitChan chan bool
 	users    map[string]string
+	groups   map[string]string
 	logger   *zap.SugaredLogger
 }
 
@@ -83,7 +84,7 @@ func (app *App) Run() {
 	if proxy := viper.GetString("proxy"); proxy != "" {
 		proxyUrl, _ := url.Parse(proxy)
 		myClient := &http.Client{Transport: &http.Transport{
-			Proxy: http.ProxyURL(proxyUrl),
+			Proxy:                 http.ProxyURL(proxyUrl),
 			ResponseHeaderTimeout: time.Second * 30,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		}}
@@ -168,6 +169,7 @@ func main() {
 
 	app := NewApp(sl)
 	app.users = viper.GetStringMapString("users")
+	app.groups = viper.GetStringMapString("groups")
 
 	go runHttpServer(app)
 

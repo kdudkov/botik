@@ -6,4 +6,5 @@ webhook_listen: 0.0.0.0:8888
 users:
   User1: 555112233
   User2: 555112234
-group: "-2223344443"
+groups:
+    family: "-2223344443"

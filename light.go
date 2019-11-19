@@ -2,11 +2,8 @@ package main
 
 import (
 	"fmt"
-	"net/http"
-	"strings"
-	"time"
-
 	"go.uber.org/zap"
+	"strings"
 )
 
 const (
@@ -32,8 +29,7 @@ func init() {
 }
 
 func NewLight() *Light {
-	client := &http.Client{Timeout: time.Second * 5}
-	return &Light{mahno: &MahnoHttpApi{host: "oh.home", client: client}}
+	return &Light{mahno: NewMahnoApi()}
 }
 
 func (l *Light) AddLogger(logger *zap.SugaredLogger) {
@@ -41,12 +37,12 @@ func (l *Light) AddLogger(logger *zap.SugaredLogger) {
 	l.mahno.SetLogger(logger)
 }
 
-func (x *Light) Logf(level int8, template string, args ...interface{}) {
-	Logf(x.logger, level, template, args)
+func (l *Light) Logf(level int8, template string, args ...interface{}) {
+	Logf(l.logger, level, template, args)
 }
 
-func (x *Light) Logw(level int8, template string, args ...interface{}) {
-	Logw(x.logger, level, template, args)
+func (l *Light) Logw(level int8, template string, args ...interface{}) {
+	Logw(l.logger, level, template, args)
 }
 
 func (l *Light) Check(user string, msg string) (q *Q) {
@@ -54,6 +50,15 @@ func (l *Light) Check(user string, msg string) (q *Q) {
 	q = &Q{Msg: msg, User: user}
 
 	words := q.words()
+
+	if strings.HasPrefix(m, "light") {
+		if len(words) == 1 {
+			q.Matched = true
+			q.Prefix = ""
+			q.Cmd = STATUS
+			return
+		}
+	}
 
 	if s := hasPrefix(m, "включи", "включить"); s != "" {
 		q.Matched = true
@@ -182,18 +187,9 @@ func (l *Light) Process(q *Q) string {
 			return fmt.Sprintf("ошибка: %s", err.Error())
 		}
 
-		ans := ""
+		ans := "свет:\n"
 		for _, i := range res {
-			var pr bool = false
-
-			for _, t := range i.Tags {
-				if t == "light" {
-					pr = true
-					break
-				}
-			}
-
-			if (pr || i.Name == "home_mode") && i.Formatted != nil {
+			if indexOf(i.Tags, "light") > -1 || i.Name == "home_mode" {
 				ans = fmt.Sprintf("%s\n%s %s", ans, i.Name, i.Formatted)
 			}
 		}

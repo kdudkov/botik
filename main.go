@@ -33,7 +33,9 @@ func NewApp(logger *zap.SugaredLogger) (app *App) {
 }
 
 func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
-	app.bot.RemoveWebhook()
+	if _, err := app.bot.RemoveWebhook(); err != nil {
+		app.logger.Errorf("can't remove webhook", err)
+	}
 
 	if webhook := viper.GetString("webhook"); webhook != "" {
 		app.logger.Infof("starting webhook %s", webhook)
@@ -73,7 +75,9 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 
 func (app *App) quit() {
 	if viper.GetString("webhook") != "" {
-		app.bot.RemoveWebhook()
+		if _, err := app.bot.RemoveWebhook(); err != nil {
+			app.logger.Errorf("can't remove webhook", err)
+		}
 	}
 	app.bot.StopReceivingUpdates()
 }
@@ -140,10 +144,10 @@ func (app *App) Process(update tgbotapi.Update) {
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, ans)
 	//msg.ReplyToMessageID = update.Message.MessageID
 
-	_, e := app.bot.Send(msg)
+	_, err := app.bot.Send(msg)
 
-	if e != nil {
-		logger.Errorf("can't send message: %s", e.Error())
+	if err != nil {
+		logger.Errorf("can't send message: %s", err.Error())
 	}
 }
 

@@ -15,17 +15,12 @@ import (
 type Item struct {
 	ClassName string      `json:"class"`
 	Name      string      `json:"name"`
-	TTL       int         `json:"ttl"`
+	HumanName string      `json:"human_name,omitempty"`
 	Value     interface{} `json:"value"`
-	Value2    interface{} `json:"_value"`
-	//Age       time.Duration `json:"age"`
-	//CheckAge  time.Duration `json:"check_age"`
-	//Checked   time.Time     `json:"checked"`
-	//Changed   time.Time     `json:"changed"`
+	Formatted string      `json:"formatted_value,omitempty"`
+	Checked   time.Time   `json:"checked"`
+	Changed   time.Time   `json:"changed"`
 	Tags      []string    `json:"tags"`
-	Formatted interface{} `json:"formatted,omitempty"`
-	HumanName string      `json:"h_name,omitempty"`
-	UI        bool        `json:"ui"`
 }
 
 type MahnoApi interface {
@@ -42,19 +37,20 @@ type MahnoHttpApi struct {
 }
 
 func NewMahnoApi() *MahnoHttpApi {
-	client := &http.Client{Timeout: time.Second * 5}
+	client := &http.Client{Timeout: time.Second * 3}
 	return &MahnoHttpApi{host: "oh.home", client: client}
 }
-func (x *MahnoHttpApi) SetLogger(logger *zap.SugaredLogger) {
-	x.logger = logger
+
+func (m *MahnoHttpApi) SetLogger(logger *zap.SugaredLogger) {
+	m.logger = logger
 }
 
-func (x *MahnoHttpApi) Logf(level int8, template string, args ...interface{}) {
-	Logf(x.logger, level, template, args)
+func (m *MahnoHttpApi) Logf(level int8, template string, args ...interface{}) {
+	Logf(m.logger, level, template, args)
 }
 
-func (x *MahnoHttpApi) Logw(level int8, template string, args ...interface{}) {
-	Logw(x.logger, level, template, args)
+func (m *MahnoHttpApi) Logw(level int8, template string, args ...interface{}) {
+	Logw(m.logger, level, template, args)
 }
 
 func (m *MahnoHttpApi) doReqReader(method string, path string, data string) (io.ReadCloser, error) {

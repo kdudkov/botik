@@ -52,9 +52,10 @@ func RegisterAnswer(name string, ans Answer) error {
 }
 
 func CheckAnswer(user string, msg string) string {
-	for _, ans := range answers {
+	msg1 := strings.TrimLeft(msg, "/")
 
-		if q := ans.Check(user, msg); q.Matched {
+	for _, ans := range answers {
+		if q := ans.Check(user, msg1); q.Matched {
 			return ans.Process(q)
 		}
 	}

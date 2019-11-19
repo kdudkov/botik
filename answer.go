@@ -9,10 +9,15 @@ import (
 	"go.uber.org/zap"
 )
 
-type Answer interface {
+type Answerer interface {
 	Check(user string, msg string) *Q
-	Process(q *Q) string
+	Process(q *Q) *Answer
 	AddLogger(logger *zap.SugaredLogger)
+}
+
+type Answer struct {
+	Msg   string
+	Photo string
 }
 
 type Q struct {
@@ -21,6 +26,14 @@ type Q struct {
 	Cmd     string
 	Matched bool
 	User    string
+}
+
+func TextAnswer(msg string) *Answer {
+	return &Answer{Msg: msg}
+}
+
+func PhotoAnswer(file string) *Answer {
+	return &Answer{Photo: file}
 }
 
 func (q *Q) short() string {
@@ -39,9 +52,9 @@ func (q *Q) words() []string {
 	return res
 }
 
-var answers = make(map[string]Answer, 0)
+var answers = make(map[string]Answerer, 0)
 
-func RegisterAnswer(name string, ans Answer) error {
+func RegisterAnswer(name string, ans Answerer) error {
 	_, existing := answers[name]
 	if existing {
 		return fmt.Errorf("answer with name '%s' is already registered", name)
@@ -51,7 +64,7 @@ func RegisterAnswer(name string, ans Answer) error {
 	return nil
 }
 
-func CheckAnswer(user string, msg string) string {
+func CheckAnswer(user string, msg string) *Answer {
 	msg1 := strings.TrimLeft(msg, "/")
 
 	for _, ans := range answers {
@@ -60,7 +73,7 @@ func CheckAnswer(user string, msg string) string {
 		}
 	}
 
-	return fmt.Sprintf("я не знаю, что такое %s", msg)
+	return TextAnswer(fmt.Sprintf("я не знаю, что такое %s", msg))
 }
 
 func indexOf(words []string, element ...string) int {

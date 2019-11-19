@@ -59,14 +59,14 @@ func (i *Influx) Check(user string, msg string) (q *Q) {
 
 	words := q.words()
 
-	if IsInArray(words[0], []string{"давление", "/bp"}) {
+	if IsInArray(words[0], []string{"давление", "bp"}) {
 		q.Matched = true
 		q.Prefix = words[0]
 		q.Cmd = BP
 		return
 	}
 
-	if IsInArray(words[0], []string{"вес", "/weight"}) {
+	if IsInArray(words[0], []string{"вес", "weight"}) {
 		q.Matched = true
 		q.Prefix = words[0]
 		q.Cmd = WEIGHT
@@ -76,7 +76,7 @@ func (i *Influx) Check(user string, msg string) (q *Q) {
 	return
 }
 
-func (i *Influx) Process(q *Q) string {
+func (i *Influx) Process(q *Q) *Answer {
 	words := q.words()
 
 	switch q.Cmd {
@@ -88,10 +88,10 @@ func (i *Influx) Process(q *Q) string {
 				for _, pp := range p {
 					res += pp.String() + "\n"
 				}
-				return res
+				return TextAnswer(res)
 			} else {
 				i.Logf(LOG_ERROR, "error getting pressure %s", err.Error())
-				return err.Error()
+				return TextAnswer(err.Error())
 			}
 		}
 
@@ -101,46 +101,46 @@ func (i *Influx) Process(q *Q) string {
 			sys, err := strconv.ParseInt(words[1], 10, 16)
 			if err != nil {
 				i.Logf(LOG_ERROR, "parse error %s", err.Error())
-				return err.Error()
+				return TextAnswer(err.Error())
 			}
 			dia, err := strconv.ParseInt(words[2], 10, 16)
 			if err != nil {
 				i.Logf(LOG_ERROR, "parse error %s", err.Error())
-				return err.Error()
+				return TextAnswer(err.Error())
 			}
 			if len(words) > 3 {
 				note = strings.Join(words[3:], " ")
 			}
 			if err := i.sendBP(q.User, uint16(sys), uint16(dia), note); err != nil {
 				i.Logf(LOG_ERROR, "send error %s", err.Error())
-				return "ошибка " + err.Error()
+				return TextAnswer("ошибка " + err.Error())
 			} else {
-				return fmt.Sprintf("записано давление %d/%d", sys, dia)
+				return TextAnswer(fmt.Sprintf("записано давление %d/%d", sys, dia))
 			}
 
 		}
 
-		return "использование: \"давление\" или \"давление 120 80\""
+		return TextAnswer("использование: \"давление\" или \"давление 120 80\"")
 
 	case WEIGHT:
 		if len(words) == 2 {
 			w, err := strconv.ParseFloat(strings.ReplaceAll(words[1], ",", "."), 10)
 			if err != nil {
 				i.Logf(LOG_ERROR, "parse error %s", err.Error())
-				return err.Error()
+				return TextAnswer(err.Error())
 			}
 			if err := i.sendWeight(q.User, w, 0); err != nil {
 				i.Logf(LOG_ERROR, "send error %s", err.Error())
-				return "ошибка " + err.Error()
+				return TextAnswer("ошибка " + err.Error())
 			} else {
-				return fmt.Sprintf("записан вес %.1f", w)
+				return TextAnswer(fmt.Sprintf("записан вес %.1f", w))
 			}
 
 		}
-		return "использование: \"вес \" или \"вес 95.2\""
+		return TextAnswer("использование: \"вес \" или \"вес 95.2\"")
 
 	default:
-		return "invalid command " + q.Cmd
+		return TextAnswer("invalid command " + q.Cmd)
 	}
 }
 

@@ -112,55 +112,55 @@ func (l *Light) Check(user string, msg string) (q *Q) {
 	return
 }
 
-func (l *Light) Process(q *Q) string {
+func (l *Light) Process(q *Q) *Answer {
 	words := q.words()
 
 	switch q.Cmd {
 	case ON:
 		target := getTarget(words)
 		if target == "" {
-			return fmt.Sprintf("не понимаю %s", q.Msg)
+			return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
 		}
 
 		l.Logf(LOG_INFO, "light %s ON", target)
 		err := l.mahno.ItemCommand(target, ON)
 
 		if err != nil {
-			return fmt.Sprintf("ошибка: %s", err.Error())
+			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
 		}
-		return fmt.Sprintf("включаю %s", target)
+		return TextAnswer(fmt.Sprintf("включаю %s", target))
 	case OFF:
 		target := getTarget(words)
 		if target == "" {
-			return fmt.Sprintf("не понимаю %s", q.Msg)
+			return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
 		}
 
 		l.Logf(LOG_INFO, "light %s OFF", target)
 		err := l.mahno.ItemCommand(target, OFF)
 
 		if err != nil {
-			return fmt.Sprintf("ошибка: %s", err.Error())
+			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
 		}
-		return fmt.Sprintf("выключаю %s", target)
+		return TextAnswer(fmt.Sprintf("выключаю %s", target))
 
 	case ALL_ON:
 		l.Logf(LOG_INFO, "all lights on")
 		allLight(l.mahno, ON)
-		return "включаю весь свет"
+		return TextAnswer("включаю весь свет")
 
 	case ALL_OFF:
 		l.Logf(LOG_INFO, "all lights off")
 		allLight(l.mahno, OFF)
-		return "выключаю весь свет"
+		return TextAnswer("выключаю весь свет")
 
 	case DAY:
 		l.Logf(LOG_INFO, "home mode day")
 		err := l.mahno.SetItemState("home_mode", "day")
 
 		if err != nil {
-			return fmt.Sprintf("ошибка: %s", err.Error())
+			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
 		}
-		return "дневной режим"
+		return TextAnswer("дневной режим")
 
 	case NIGHT:
 		l.Logf(LOG_INFO, "home mode night")
@@ -168,23 +168,23 @@ func (l *Light) Process(q *Q) string {
 		err := l.mahno.SetItemState("home_mode", "night")
 
 		if err != nil {
-			return fmt.Sprintf("ошибка: %s", err.Error())
+			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
 		}
-		return "ночной режим"
+		return TextAnswer("ночной режим")
 
 	case NOBODY_HOME:
 		l.Logf(LOG_INFO, "home mode nobody")
 		err := l.mahno.SetItemState("home_mode", "nobody_home")
 
 		if err != nil {
-			return fmt.Sprintf("ошибка: %s", err.Error())
+			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
 		}
-		return "режим отсутствия"
+		return TextAnswer("режим отсутствия")
 
 	case STATUS:
 		res, err := l.mahno.AllItems()
 		if err != nil {
-			return fmt.Sprintf("ошибка: %s", err.Error())
+			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
 		}
 
 		ans := "свет:\n"
@@ -193,10 +193,10 @@ func (l *Light) Process(q *Q) string {
 				ans = fmt.Sprintf("%s\n%s %s", ans, i.Name, i.Formatted)
 			}
 		}
-		return ans
+		return TextAnswer(ans)
 
 	default:
-		return fmt.Sprintf("не понимаю, что значит %s", q.Msg)
+		return TextAnswer(fmt.Sprintf("не понимаю, что значит %s", q.Msg))
 	}
 }
 

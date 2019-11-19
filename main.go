@@ -125,7 +125,7 @@ func (app *App) Process(update tgbotapi.Update) {
 	logger := app.logger.With("from", update.Message.From.UserName, "id", update.Message.From.ID)
 	logger.Infof("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
-	var ans string
+	var ans *Answer
 	var user string
 	for u, id := range app.users {
 		if id == strconv.Itoa(update.Message.From.ID) {
@@ -136,12 +136,19 @@ func (app *App) Process(update tgbotapi.Update) {
 
 	if user == "" {
 		logger.Infof("invalid user %s", update.Message.From.UserName)
-		ans = "с незнакомыми не разговариваю"
+		ans = TextAnswer("с незнакомыми не разговариваю")
 	} else {
 		ans = CheckAnswer(user, update.Message.Text)
 	}
 
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, ans)
+	var msg tgbotapi.Chattable
+
+	if ans.Photo != "" {
+		msg = tgbotapi.NewPhotoUpload(update.Message.Chat.ID, ans.Photo)
+	} else {
+		msg = tgbotapi.NewMessage(update.Message.Chat.ID, ans.Msg)
+	}
+
 	//msg.ReplyToMessageID = update.Message.MessageID
 
 	_, err := app.bot.Send(msg)

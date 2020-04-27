@@ -94,7 +94,11 @@ func (app *App) Run() {
 		}}
 		app.bot, err = tgbotapi.NewBotAPIWithClient(viper.GetString("token"), myClient)
 	} else {
-		app.bot, err = tgbotapi.NewBotAPI(viper.GetString("token"))
+		myClient := &http.Client{Transport: &http.Transport{
+			ResponseHeaderTimeout: time.Second * 30,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+		}}
+		app.bot, err = tgbotapi.NewBotAPIWithClient(viper.GetString("token"), myClient)
 	}
 
 	if err != nil {

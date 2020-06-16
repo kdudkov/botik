@@ -1,6 +1,7 @@
-package main
+package answer
 
 import (
+	"botik/api"
 	"fmt"
 	"strings"
 	"testing"
@@ -10,13 +11,17 @@ type MockInflux struct {
 	result string
 }
 
-func (i *MockInflux) Send(q string) error {
+func (i *MockInflux) Send(db, q string) error {
 	i.result = q
 	return nil
 }
 
-func (i *MockInflux) GetData(q string, fn convert) error {
-	return nil
+func (i *MockInflux) GetData(db, q string) (api.InfluxAnswer, error) {
+	return api.InfluxAnswer{}, nil
+}
+
+func (i *MockInflux) GetSingleSeries(db string, q string) ([]map[string]interface{}, error) {
+	return nil, nil
 }
 
 var (
@@ -29,7 +34,7 @@ func TestInfluxSendWeight(t *testing.T) {
 	var words []string
 
 	q = l.Check("user", "Вес 90.1")
-	words = q.words()
+	words = q.Words()
 
 	if !(q.Matched && q.Cmd == WEIGHT) {
 		t.Fail()
@@ -51,7 +56,7 @@ func TestInfluxSendWeight(t *testing.T) {
 	mock.result = ""
 
 	q = l.Check("user", "Вес 90,2")
-	words = q.words()
+	words = q.Words()
 
 	if !(q.Matched && q.Cmd == WEIGHT) {
 		t.Fail()

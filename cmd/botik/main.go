@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"runtime"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+
+	"botik/answer"
 )
 
 var (
@@ -20,11 +24,10 @@ var (
 )
 
 type App struct {
-	bot      *tgbotapi.BotAPI
-	exitChan chan bool
-	users    map[string]string
-	groups   map[string]string
-	logger   *zap.SugaredLogger
+	bot    *tgbotapi.BotAPI
+	users  map[string]string
+	groups map[string]string
+	logger *zap.SugaredLogger
 }
 
 func NewApp(logger *zap.SugaredLogger) (app *App) {
@@ -74,28 +77,32 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 }
 
 func (app *App) quit() {
+	app.bot.StopReceivingUpdates()
 	if viper.GetString("webhook") != "" {
 		if _, err := app.bot.RemoveWebhook(); err != nil {
 			app.logger.Errorf("can't remove webhook", err)
 		}
 	}
-	app.bot.StopReceivingUpdates()
 }
 
 func (app *App) Run() {
+	for _, ans := range answer.Answers {
+		ans.AddLogger(app.logger)
+	}
+
 	var err error
 
 	if proxy := viper.GetString("proxy"); proxy != "" {
 		proxyUrl, _ := url.Parse(proxy)
-		myClient := &http.Client{Transport: &http.Transport{
+		myClient := &http.Client{Timeout: time.Second * 10, Transport: &http.Transport{
 			Proxy:                 http.ProxyURL(proxyUrl),
-			ResponseHeaderTimeout: time.Second * 30,
+			ResponseHeaderTimeout: time.Second * 5,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		}}
 		app.bot, err = tgbotapi.NewBotAPIWithClient(viper.GetString("token"), myClient)
 	} else {
-		myClient := &http.Client{Transport: &http.Transport{
-			ResponseHeaderTimeout: time.Second * 30,
+		myClient := &http.Client{Timeout: time.Second * 10, Transport: &http.Transport{
+			ResponseHeaderTimeout: time.Second * 5,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		}}
 		app.bot, err = tgbotapi.NewBotAPIWithClient(viper.GetString("token"), myClient)
@@ -106,18 +113,21 @@ func (app *App) Run() {
 	}
 	app.logger.Infof("registering %s", app.bot.Self.String())
 
-	updates := app.GetUpdatesChannel()
+	go runHttpServer(app)
 
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
+
+	updates := app.GetUpdatesChannel()
 	for {
 		select {
 		case update := <-updates:
 			go app.Process(update)
-		case <-app.exitChan:
+		case <-sigc:
+			app.logger.Info("quit")
 			app.quit()
 			break
 		}
-
-		runtime.Gosched()
 	}
 }
 
@@ -129,7 +139,7 @@ func (app *App) Process(update tgbotapi.Update) {
 	logger := app.logger.With("from", update.Message.From.UserName, "id", update.Message.From.ID)
 	logger.Infof("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
-	var ans *Answer
+	var ans *answer.Answer
 	var user string
 	for u, id := range app.users {
 		if id == strconv.Itoa(update.Message.From.ID) {
@@ -140,9 +150,9 @@ func (app *App) Process(update tgbotapi.Update) {
 
 	if user == "" {
 		logger.Infof("invalid user %s", update.Message.From.UserName)
-		ans = TextAnswer("с незнакомыми не разговариваю")
+		ans = answer.TextAnswer("с незнакомыми не разговариваю")
 	} else {
-		ans = CheckAnswer(user, update.Message.Text)
+		ans = answer.CheckAnswer(user, update.Message.Text)
 	}
 
 	var msg tgbotapi.Chattable
@@ -165,15 +175,16 @@ func (app *App) Process(update tgbotapi.Update) {
 func main() {
 	viper.SetConfigName("botik")
 	viper.AddConfigPath(".")
-	err := viper.ReadInConfig()
 
-	if err != nil {
+	if err := viper.ReadInConfig(); err != nil {
 		panic(fmt.Errorf("Fatal error config file: %s \n", err))
 	}
 
 	config := zap.NewProductionConfig()
 	config.Encoding = "console"
+
 	logger, err := config.Build()
+	defer logger.Sync()
 
 	if err != nil {
 		panic(err.Error())
@@ -185,12 +196,6 @@ func main() {
 	app := NewApp(sl)
 	app.users = viper.GetStringMapString("users")
 	app.groups = viper.GetStringMapString("groups")
-
-	go runHttpServer(app)
-
-	for _, ans := range answers {
-		ans.AddLogger(sl)
-	}
 
 	app.Run()
 }

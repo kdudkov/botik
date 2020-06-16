@@ -1,4 +1,4 @@
-package main
+package answer
 
 import (
 	"fmt"
@@ -40,7 +40,7 @@ func (q *Q) short() string {
 	return q.Msg[len(q.Prefix):]
 }
 
-func (q *Q) words() []string {
+func (q *Q) Words() []string {
 	res := strings.FieldsFunc(strings.ToLower(q.Msg), func(r rune) bool {
 		//return unicode.IsSpace(r) || unicode.IsPunct(r)
 		return unicode.IsSpace(r)
@@ -52,22 +52,22 @@ func (q *Q) words() []string {
 	return res
 }
 
-var answers = make(map[string]Answerer, 0)
+var Answers = make(map[string]Answerer, 0)
 
 func RegisterAnswer(name string, ans Answerer) error {
-	_, existing := answers[name]
+	_, existing := Answers[name]
 	if existing {
 		return fmt.Errorf("answer with name '%s' is already registered", name)
 	}
 
-	answers[name] = ans
+	Answers[name] = ans
 	return nil
 }
 
 func CheckAnswer(user string, msg string) *Answer {
 	msg1 := strings.TrimLeft(msg, "/")
 
-	for _, ans := range answers {
+	for _, ans := range Answers {
 		if q := ans.Check(user, msg1); q.Matched {
 			return ans.Process(q)
 		}
@@ -76,7 +76,7 @@ func CheckAnswer(user string, msg string) *Answer {
 	return TextAnswer(fmt.Sprintf("я не знаю, что такое %s", msg))
 }
 
-func indexOf(words []string, element ...string) int {
+func IndexOf(words []string, element ...string) int {
 	for k, v := range words {
 		for _, v1 := range element {
 			if v == v1 {
@@ -87,7 +87,7 @@ func indexOf(words []string, element ...string) int {
 	return -1
 }
 
-func hasPrefix(s string, prefixes ...string) string {
+func HasPrefix(s string, prefixes ...string) string {
 	sort.Slice(prefixes, func(i, j int) bool {
 		return len(prefixes[i]) > len(prefixes[j])
 	})

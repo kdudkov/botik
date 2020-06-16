@@ -1,4 +1,4 @@
-package main
+package answer
 
 import (
 	testify_assert "github.com/stretchr/testify/assert"
@@ -12,7 +12,7 @@ func TestWords(t *testing.T) {
 	var w []string
 
 	q.Msg = " message,  number one!   5,25\n"
-	w = q.words()
+	w = q.Words()
 
 	assert.Equal("message", w[0], "error")
 	assert.Equal("number", w[1], "error")

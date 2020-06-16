@@ -1,4 +1,4 @@
-package main
+package answer
 
 import (
 	"testing"
@@ -20,6 +20,6 @@ func TestLightCheck(t *testing.T) {
 func TestPrefix(t *testing.T) {
 	assert := testify_assert.New(t)
 
-	s := hasPrefix("aa bb cc dd", "aa", "aa bb cc", "aa bb")
+	s := HasPrefix("aa bb cc dd", "aa", "aa bb cc", "aa bb")
 	assert.Equal("aa bb cc", s, "wrong prefix")
 }

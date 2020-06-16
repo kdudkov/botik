@@ -1,8 +1,11 @@
-package main
+package answer
 
 import (
-	"go.uber.org/zap"
 	"strings"
+
+	"go.uber.org/zap"
+
+	"botik/util"
 )
 
 type Camera struct {
@@ -21,15 +24,15 @@ func init() {
 }
 
 func (cam *Camera) AddLogger(logger *zap.SugaredLogger) {
-	cam.logger = logger
+	cam.logger = logger.Named("camera")
 }
 
 func (cam *Camera) Check(user string, msg string) (q *Q) {
 	q = &Q{Msg: msg, User: strings.ToLower(user)}
 
-	words := q.words()
+	words := q.Words()
 
-	if IsInArray(words[0], []string{"камера", "cam"}) {
+	if util.IsInArray(words[0], []string{"камера", "cam"}) {
 		q.Matched = true
 		q.Prefix = words[0]
 		q.Cmd = "camera"

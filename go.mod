@@ -1,4 +1,4 @@
-module github.com/kdudkov/botik
+module botik
 
 require (
 	github.com/aofei/air v0.9.1

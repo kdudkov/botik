@@ -1,9 +1,12 @@
-package main
+package answer
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"strings"
+
+	"go.uber.org/zap"
+
+	"botik/api"
 )
 
 const (
@@ -18,7 +21,7 @@ const (
 )
 
 type Light struct {
-	mahno  MahnoApi
+	mahno  api.MahnoApi
 	logger *zap.SugaredLogger
 }
 
@@ -29,27 +32,19 @@ func init() {
 }
 
 func NewLight() *Light {
-	return &Light{mahno: NewMahnoApi()}
+	return &Light{mahno: api.NewMahnoApi()}
 }
 
 func (l *Light) AddLogger(logger *zap.SugaredLogger) {
-	l.logger = logger
-	l.mahno.SetLogger(logger)
-}
-
-func (l *Light) Logf(level int8, template string, args ...interface{}) {
-	Logf(l.logger, level, template, args)
-}
-
-func (l *Light) Logw(level int8, template string, args ...interface{}) {
-	Logw(l.logger, level, template, args)
+	l.logger = logger.Named("light")
+	l.mahno.SetLogger(logger.Named("mahno_api"))
 }
 
 func (l *Light) Check(user string, msg string) (q *Q) {
 	m := strings.ToLower(msg)
 	q = &Q{Msg: msg, User: user}
 
-	words := q.words()
+	words := q.Words()
 
 	if strings.HasPrefix(m, "light") {
 		if len(words) == 1 {
@@ -60,48 +55,48 @@ func (l *Light) Check(user string, msg string) (q *Q) {
 		}
 	}
 
-	if s := hasPrefix(m, "включи", "включить"); s != "" {
+	if s := HasPrefix(m, "включи", "включить"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = ON
-		if indexOf(words, "весь", "везде") > -1 {
+		if IndexOf(words, "весь", "везде") > -1 {
 			q.Cmd = ALL_ON
 		}
 		return
 	}
 
-	if s := hasPrefix(m, "выключи", "выключить"); s != "" {
+	if s := HasPrefix(m, "выключи", "выключить"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = OFF
-		if indexOf(words, "весь", "везде") > -1 {
+		if IndexOf(words, "весь", "везде") > -1 {
 			q.Cmd = ALL_OFF
 		}
 		return
 	}
 
-	if s := hasPrefix(m, "спать", "ночной режим", "ночь"); s != "" {
+	if s := HasPrefix(m, "спать", "ночной режим", "ночь"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = NIGHT
 		return
 	}
 
-	if s := hasPrefix(m, "день"); s != "" {
+	if s := HasPrefix(m, "день"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = DAY
 		return
 	}
 
-	if s := hasPrefix(m, "жди", "все ушли", "один дома"); s != "" {
+	if s := HasPrefix(m, "жди", "все ушли", "один дома"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = NOBODY_HOME
 		return
 	}
 
-	if s := hasPrefix(m, "свет", "статус"); s != "" {
+	if s := HasPrefix(m, "свет", "статус"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = STATUS
@@ -113,7 +108,7 @@ func (l *Light) Check(user string, msg string) (q *Q) {
 }
 
 func (l *Light) Process(q *Q) *Answer {
-	words := q.words()
+	words := q.Words()
 
 	switch q.Cmd {
 	case ON:
@@ -122,7 +117,7 @@ func (l *Light) Process(q *Q) *Answer {
 			return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
 		}
 
-		l.Logf(LOG_INFO, "light %s ON", target)
+		l.logger.Infof("light %s ON", target)
 		err := l.mahno.ItemCommand(target, ON)
 
 		if err != nil {
@@ -135,7 +130,7 @@ func (l *Light) Process(q *Q) *Answer {
 			return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
 		}
 
-		l.Logf(LOG_INFO, "light %s OFF", target)
+		l.logger.Infof("light %s OFF", target)
 		err := l.mahno.ItemCommand(target, OFF)
 
 		if err != nil {
@@ -144,17 +139,17 @@ func (l *Light) Process(q *Q) *Answer {
 		return TextAnswer(fmt.Sprintf("выключаю %s", target))
 
 	case ALL_ON:
-		l.Logf(LOG_INFO, "all lights on")
+		l.logger.Infof("all lights on")
 		allLight(l.mahno, ON)
 		return TextAnswer("включаю весь свет")
 
 	case ALL_OFF:
-		l.Logf(LOG_INFO, "all lights off")
+		l.logger.Infof("all lights off")
 		allLight(l.mahno, OFF)
 		return TextAnswer("выключаю весь свет")
 
 	case DAY:
-		l.Logf(LOG_INFO, "home mode day")
+		l.logger.Infof("home mode day")
 		err := l.mahno.SetItemState("home_mode", "day")
 
 		if err != nil {
@@ -163,7 +158,7 @@ func (l *Light) Process(q *Q) *Answer {
 		return TextAnswer("дневной режим")
 
 	case NIGHT:
-		l.Logf(LOG_INFO, "home mode night")
+		l.logger.Infof("home mode night")
 		allLight(l.mahno, OFF)
 		err := l.mahno.SetItemState("home_mode", "night")
 
@@ -173,7 +168,7 @@ func (l *Light) Process(q *Q) *Answer {
 		return TextAnswer("ночной режим")
 
 	case NOBODY_HOME:
-		l.Logf(LOG_INFO, "home mode nobody")
+		l.logger.Infof("home mode nobody")
 		err := l.mahno.SetItemState("home_mode", "nobody_home")
 
 		if err != nil {
@@ -189,7 +184,7 @@ func (l *Light) Process(q *Q) *Answer {
 
 		ans := "свет:\n"
 		for _, i := range res {
-			if indexOf(i.Tags, "light") > -1 || i.Name == "home_mode" {
+			if IndexOf(i.Tags, "light") > -1 || i.Name == "home_mode" {
 				ans = fmt.Sprintf("%s\n%s %s", ans, i.Name, i.Formatted)
 			}
 		}
@@ -201,7 +196,7 @@ func (l *Light) Process(q *Q) *Answer {
 }
 
 func getTarget(words []string) string {
-	if i := indexOf(words, "в", "на", "у"); i > -1 {
+	if i := IndexOf(words, "в", "на", "у"); i > -1 {
 		if len(words) <= i+1 {
 			return ""
 		}
@@ -229,7 +224,7 @@ func getItemName(s string) string {
 	return ""
 }
 
-func allLight(mahno MahnoApi, cmd string) {
+func allLight(mahno api.MahnoApi, cmd string) {
 	for _, x := range []string{"light_room", "light_corridor", "s20_1", "s20_2"} {
 		mahno.ItemCommand(x, cmd)
 	}

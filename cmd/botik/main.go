@@ -140,15 +140,24 @@ func (app *App) Process(update tgbotapi.Update) {
 	}
 
 	logger := app.logger.With("from", update.Message.From.UserName, "id", update.Message.From.ID)
-	logger.Infof("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
-	var ans *answer.Answer
 	var user string
 	for u, id := range app.users {
 		if id == strconv.Itoa(update.Message.From.ID) {
 			user = u
 			break
 		}
+	}
+
+	if user == "" {
+		logger.Infof("unknown user %s", update.Message.Text)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "с незнакомыми не разговариваю")
+		_, err := app.bot.Send(msg)
+
+		if err != nil {
+			logger.Errorf("can't send message: %s", err.Error())
+		}
+		return
 	}
 
 	if update.Message.Location != nil && update.Message.From != nil {
@@ -162,20 +171,16 @@ func (app *App) Process(update tgbotapi.Update) {
 			evt.Detail.TakVersion.Version = "0.1"
 			evt.Detail.TakVersion.Os = "linux-amd64"
 			app.sendTak(evt)
+			return
 		}
 	}
 
 	if update.Message.Text == "" {
+		logger.Infof("empty message")
 		return
 	}
 
-	if user == "" {
-		logger.Infof("invalid user %s", update.Message.From.UserName)
-		ans = answer.TextAnswer("с незнакомыми не разговариваю")
-	} else {
-		ans = answer.CheckAnswer(user, update.Message.Text)
-	}
-
+	ans := answer.CheckAnswer(user, update.Message.Text)
 	var msg tgbotapi.Chattable
 
 	if ans.Photo != "" {

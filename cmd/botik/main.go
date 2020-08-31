@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/kdudkov/goatak/cot"
+	"github.com/kdudkov/goatak/xml"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
@@ -148,6 +151,24 @@ func (app *App) Process(update tgbotapi.Update) {
 		}
 	}
 
+	if update.Message.Location != nil && update.Message.From != nil {
+		logger.Infof("location: %f %f", update.Message.Location.Latitude, update.Message.Location.Longitude)
+		if viper.GetString("tak-server") != "" {
+			evt := cot.BasicEvent("a-f-G", fmt.Sprintf("tg-%d", update.Message.From.ID), time.Hour)
+			evt.Detail = *cot.BasicDetail(update.Message.From.UserName, "Red", "Team Member")
+			evt.Point.Lon = update.Message.Location.Longitude
+			evt.Point.Lat = update.Message.Location.Latitude
+			evt.Detail.TakVersion.Platform = "Telegram bot"
+			evt.Detail.TakVersion.Version = "0.1"
+			evt.Detail.TakVersion.Os = "linux-amd64"
+			app.sendTak(evt)
+		}
+	}
+
+	if update.Message.Text == "" {
+		return
+	}
+
 	if user == "" {
 		logger.Infof("invalid user %s", update.Message.From.UserName)
 		ans = answer.TextAnswer("с незнакомыми не разговариваю")
@@ -170,6 +191,26 @@ func (app *App) Process(update tgbotapi.Update) {
 	if err != nil {
 		logger.Errorf("can't send message: %s", err.Error())
 	}
+}
+
+func (app *App) sendTak(evt *cot.Event) {
+	msg, err := xml.Marshal(evt)
+	if err != nil {
+		app.logger.Errorf("marshal error: %v", err)
+		return
+	}
+
+	conn, err := net.Dial("tcp", viper.GetString("tak-server"))
+	if err != nil {
+		app.logger.Errorf("connection error: %v", err)
+		return
+	}
+
+	conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
+	if _, err := conn.Write(msg); err != nil {
+		app.logger.Errorf("write error: %v", err)
+	}
+	conn.Close()
 }
 
 func main() {

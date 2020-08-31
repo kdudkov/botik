@@ -26,4 +26,5 @@ test:
 
 .PHONY: build
 build: clean dep
+	[ -d bin ] || mkdir bin
 	go build $(LDFLAGS) -o bin/ ./cmd/...

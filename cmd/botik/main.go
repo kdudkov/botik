@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/xml"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/kdudkov/goatak/cot"
-	"github.com/kdudkov/goatak/xml"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
@@ -135,23 +135,37 @@ func (app *App) Run() {
 }
 
 func (app *App) Process(update tgbotapi.Update) {
-	if update.Message == nil {
+	var message *tgbotapi.Message
+
+	if update.EditedMessage != nil {
+		message = update.EditedMessage
+	} else {
+		message = update.Message
+	}
+
+	if message == nil {
+		app.logger.Warnf("no message: %v", update)
 		return
 	}
 
-	logger := app.logger.With("from", update.Message.From.UserName, "id", update.Message.From.ID)
+	if message.From == nil {
+		app.logger.Warnf("message without from: %v", update)
+		return
+	}
+
+	logger := app.logger.With("from", message.From.UserName, "id", message.From.ID)
 
 	var user string
 	for u, id := range app.users {
-		if id == strconv.Itoa(update.Message.From.ID) {
+		if id == strconv.Itoa(message.From.ID) {
 			user = u
 			break
 		}
 	}
 
 	if user == "" {
-		logger.Infof("unknown user %s", update.Message.Text)
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "с незнакомыми не разговариваю")
+		logger.Infof("unknown user %s", message.Text)
+		msg := tgbotapi.NewMessage(message.Chat.ID, "с незнакомыми не разговариваю")
 		_, err := app.bot.Send(msg)
 
 		if err != nil {
@@ -160,33 +174,35 @@ func (app *App) Process(update tgbotapi.Update) {
 		return
 	}
 
-	if update.Message.Location != nil && update.Message.From != nil {
-		logger.Infof("location: %f %f", update.Message.Location.Latitude, update.Message.Location.Longitude)
+	// location
+	if loc := getLocation(update); loc != nil {
+		logger.Infof("location: %f %f", loc.Latitude, loc.Longitude)
 		if viper.GetString("tak-server") != "" {
-			evt := cot.BasicEvent("a-f-G", fmt.Sprintf("tg-%d", update.Message.From.ID), time.Hour)
-			evt.Detail = *cot.BasicDetail(update.Message.From.UserName, "Red", "Team Member")
-			evt.Point.Lon = update.Message.Location.Longitude
-			evt.Point.Lat = update.Message.Location.Latitude
-			evt.Detail.TakVersion.Platform = "Telegram bot"
-			evt.Detail.TakVersion.Version = "0.1"
-			evt.Detail.TakVersion.Os = "linux-amd64"
+			evt := makeEvent(fmt.Sprintf("tg-%d", message.From.ID), user, loc.Latitude, loc.Longitude)
 			app.sendTak(evt)
 			return
 		}
 	}
 
-	if update.Message.Text == "" {
+	if message.Text == "" {
 		logger.Infof("empty message")
 		return
 	}
 
-	ans := answer.CheckAnswer(user, update.Message.Text)
+	if update.Message == nil {
+		// edited message
+		return
+	}
+
+	logger.Infof("message: %s", message.Text)
+
+	ans := answer.CheckAnswer(user, message.Text)
 	var msg tgbotapi.Chattable
 
 	if ans.Photo != "" {
-		msg = tgbotapi.NewPhotoUpload(update.Message.Chat.ID, ans.Photo)
+		msg = tgbotapi.NewPhotoUpload(message.Chat.ID, ans.Photo)
 	} else {
-		msg = tgbotapi.NewMessage(update.Message.Chat.ID, ans.Msg)
+		msg = tgbotapi.NewMessage(message.Chat.ID, ans.Msg)
 	}
 
 	//msg.ReplyToMessageID = update.Message.MessageID
@@ -196,6 +212,32 @@ func (app *App) Process(update tgbotapi.Update) {
 	if err != nil {
 		logger.Errorf("can't send message: %s", err.Error())
 	}
+}
+
+func makeEvent(id, name string, lon, lat float64) *cot.Event {
+	evt := cot.BasicEvent("a-f-G", id, time.Hour)
+	evt.Detail = cot.Detail{
+		Group:   &cot.Group{Name: "Red", Role: "Team Member"},
+		Contact: &cot.Contact{Callsign: name},
+	}
+	evt.Point.Lon = lon
+	evt.Point.Lat = lat
+	evt.Detail.TakVersion = &cot.TakVersion{}
+	evt.Detail.TakVersion.Platform = "Telegram bot"
+	evt.Detail.TakVersion.Version = "0.1"
+	evt.Detail.TakVersion.Os = "linux-amd64"
+
+	return evt
+}
+
+func getLocation(update tgbotapi.Update) *tgbotapi.Location {
+	if update.EditedMessage != nil {
+		return update.EditedMessage.Location
+	}
+	if update.Message != nil {
+		return update.Message.Location
+	}
+	return nil
 }
 
 func (app *App) sendTak(evt *cot.Event) {

@@ -155,16 +155,10 @@ func (app *App) Process(update tgbotapi.Update) {
 
 	logger := app.logger.With("from", message.From.UserName, "id", message.From.ID)
 
-	var user string
-	for u, id := range app.users {
-		if id == strconv.Itoa(message.From.ID) {
-			user = u
-			break
-		}
-	}
+	user := app.getUser(message.From.ID)
 
 	if user == "" {
-		logger.Infof("unknown user %s", message.Text)
+		logger.Infof("unknown user, msg: %s", message.Text)
 		msg := tgbotapi.NewMessage(message.Chat.ID, "с незнакомыми не разговариваю")
 		_, err := app.bot.Send(msg)
 
@@ -177,9 +171,9 @@ func (app *App) Process(update tgbotapi.Update) {
 	// location
 	if loc := getLocation(update); loc != nil {
 		logger.Infof("location: %f %f", loc.Latitude, loc.Longitude)
-		if viper.GetString("tak-server") != "" {
+		if viper.GetString("cot.server") != "" {
 			evt := makeEvent(fmt.Sprintf("tg-%d", message.From.ID), user, loc.Latitude, loc.Longitude)
-			app.sendTak(evt)
+			app.sendCotMessage(evt)
 			return
 		}
 	}
@@ -214,7 +208,17 @@ func (app *App) Process(update tgbotapi.Update) {
 	}
 }
 
-func makeEvent(id, name string, lon, lat float64) *cot.Event {
+func (app *App) getUser(id int) string {
+	sid := strconv.Itoa(id)
+	for u, id := range app.users {
+		if id == sid {
+			return u
+		}
+	}
+	return ""
+}
+
+func makeEvent(id, name string, lat, lon float64) *cot.Event {
 	evt := cot.BasicEvent("a-f-G", id, time.Hour)
 	evt.Detail = cot.Detail{
 		Group:   &cot.Group{Name: "Red", Role: "Team Member"},
@@ -240,14 +244,14 @@ func getLocation(update tgbotapi.Update) *tgbotapi.Location {
 	return nil
 }
 
-func (app *App) sendTak(evt *cot.Event) {
+func (app *App) sendCotMessage(evt *cot.Event) {
 	msg, err := xml.Marshal(evt)
 	if err != nil {
 		app.logger.Errorf("marshal error: %v", err)
 		return
 	}
 
-	conn, err := net.Dial("tcp", viper.GetString("tak-server"))
+	conn, err := net.Dial("udp", viper.GetString("cot.server"))
 	if err != nil {
 		app.logger.Errorf("connection error: %v", err)
 		return

@@ -1,8 +1,9 @@
 proxy: http://51.38.91.21:8080
 token: #tour_token_here#
-webhook1: https://google.com/hook1
-webgook_path: /hook1
-webhook_listen: 0.0.0.0:8888
+webhook:
+ ext: https://google.com/hook1
+ path: /hook1
+ listen: 0.0.0.0:8888
 users:
   User1: 555112233
   User2: 555112234

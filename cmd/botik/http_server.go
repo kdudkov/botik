@@ -5,17 +5,22 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strconv"
+	"time"
 
 	"github.com/aofei/air"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/spf13/viper"
 )
 
 func runHttpServer(app *App) {
 	a := air.Default
-	a.Address = ":8055"
+	a.Address = viper.GetString("http.address")
 
 	a.POST("/send/:NAME", SendHandlerFunc(app))
 	a.POST("/grafana", GrafanaHandlerFunc(app))
+	a.POST("/api/v2/alerts", AlertsHandlerFunc(app))
+
+	app.logger.Infof("start listener on %s", a.Address)
 
 	if err := a.Serve(); err != nil {
 		app.logger.Errorf("server error: %v", err)
@@ -39,6 +44,16 @@ type GrafanaReq struct {
 	Tags     struct {
 	} `json:"tags"`
 	Title string `json:"title"`
+}
+
+type AlertReq struct {
+	StartsAt     time.Time         `json:"startsAt"`
+	GeneratorURL string            `json:"generatorURL"`
+	EndsAt       time.Time         `json:"endsAt"`
+	Labels       map[string]string `json:"labels"`
+	Annotations  struct {
+		Summary string `json:"summary"`
+	} `json:"annotations"`
 }
 
 func SendHandlerFunc(app *App) air.Handler {
@@ -95,6 +110,29 @@ func GrafanaHandlerFunc(app *App) air.Handler {
 
 		app.logger.Warnf("user not found: %s", name)
 		return air.DefaultNotFoundHandler(req, res)
+	}
+}
+
+func AlertsHandlerFunc(app *App) air.Handler {
+	return func(req *air.Request, res *air.Response) error {
+		list := new([]AlertReq)
+
+		m := json.NewDecoder(req.Body)
+		if err := m.Decode(list); err != nil {
+			app.logger.Errorf("error decoding json, %s", err.Error())
+			return err
+		}
+
+		if list == nil {
+			return nil
+		}
+
+		for _, a := range *list {
+			app.alertUrls <- a.GeneratorURL
+		}
+
+		//_ = res.WriteString("ok")
+		return nil
 	}
 }
 

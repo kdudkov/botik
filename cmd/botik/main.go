@@ -10,12 +10,14 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/kdudkov/goatak/cot"
+	"github.com/kdudkov/goatak/cotxml"
 	"github.com/spf13/viper"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"botik/answer"
@@ -27,23 +29,31 @@ var (
 )
 
 type App struct {
-	bot    *tgbotapi.BotAPI
-	users  map[string]string
-	groups map[string]string
-	logger *zap.SugaredLogger
+	bot       *tgbotapi.BotAPI
+	users     map[string]string
+	groups    map[string]string
+	logger    *zap.SugaredLogger
+	alerts    sync.Map
+	alertUrls chan string
+	numAlerts atomic.Int32
 }
 
 func NewApp(logger *zap.SugaredLogger) (app *App) {
-	app = &App{logger: logger}
+	app = &App{
+		logger:    logger,
+		alertUrls: make(chan string, 20),
+		alerts:    sync.Map{},
+		numAlerts: atomic.Int32{},
+	}
 	return
 }
 
 func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 	if _, err := app.bot.RemoveWebhook(); err != nil {
-		app.logger.Errorf("can't remove webhook", err)
+		app.logger.Errorf("can't remove webhook: %v", err)
 	}
 
-	if webhook := viper.GetString("webhook"); webhook != "" {
+	if webhook := viper.GetString("webhook.ext"); webhook != "" {
 		app.logger.Infof("starting webhook %s", webhook)
 
 		res, err := app.bot.SetWebhook(tgbotapi.NewWebhook(webhook))
@@ -62,10 +72,10 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 			app.logger.Infof("Telegram callback failed: %s", info.LastErrorMessage)
 		}
 
-		app.logger.Infof("start listener on %s, path %s", viper.GetString("webhook_listen"), viper.GetString("webhook_path"))
-		go http.ListenAndServe(viper.GetString("webhook_listen"), nil)
+		app.logger.Infof("start listener on %s, path %s", viper.GetString("webhook.listen"), viper.GetString("webhook.path"))
+		go http.ListenAndServe(viper.GetString("webhook.listen"), nil)
 
-		return app.bot.ListenForWebhook(viper.GetString("webhook_path"))
+		return app.bot.ListenForWebhook(viper.GetString("webhook.path"))
 	}
 
 	app.logger.Info("start polling")
@@ -83,7 +93,7 @@ func (app *App) quit() {
 	app.bot.StopReceivingUpdates()
 	if viper.GetString("webhook") != "" {
 		if _, err := app.bot.RemoveWebhook(); err != nil {
-			app.logger.Errorf("can't remove webhook", err)
+			app.logger.Errorf("can't remove webhook: %v", err)
 		}
 	}
 }
@@ -120,6 +130,12 @@ func (app *App) Run() {
 
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
+
+	go func() {
+		for alertUrl := range app.alertUrls {
+			go app.processNewUrl(alertUrl)
+		}
+	}()
 
 	updates := app.GetUpdatesChannel()
 	for {
@@ -218,15 +234,15 @@ func (app *App) getUser(id int) string {
 	return ""
 }
 
-func makeEvent(id, name string, lat, lon float64) *cot.Event {
-	evt := cot.BasicEvent("a-f-G", id, time.Hour)
-	evt.Detail = cot.Detail{
-		Group:   &cot.Group{Name: "Red", Role: "Team Member"},
-		Contact: &cot.Contact{Callsign: name},
+func makeEvent(id, name string, lat, lon float64) *cotxml.Event {
+	evt := cotxml.BasicMsg("a-f-G", id, time.Hour)
+	evt.Detail = cotxml.Detail{
+		Group:   &cotxml.Group{Name: "Red", Role: "Team Member"},
+		Contact: &cotxml.Contact{Callsign: name},
 	}
 	evt.Point.Lon = lon
 	evt.Point.Lat = lat
-	evt.Detail.TakVersion = &cot.TakVersion{}
+	evt.Detail.TakVersion = &cotxml.TakVersion{}
 	evt.Detail.TakVersion.Platform = "Telegram bot"
 	evt.Detail.TakVersion.Version = "0.1"
 	evt.Detail.TakVersion.Os = "linux-amd64"
@@ -244,7 +260,7 @@ func getLocation(update tgbotapi.Update) *tgbotapi.Location {
 	return nil
 }
 
-func (app *App) sendCotMessage(evt *cot.Event) {
+func (app *App) sendCotMessage(evt *cotxml.Event) {
 	msg, err := xml.Marshal(evt)
 	if err != nil {
 		app.logger.Errorf("marshal error: %v", err)

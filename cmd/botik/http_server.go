@@ -132,8 +132,7 @@ func AlertsHandlerFunc(app *App) air.Handler {
 			app.alertUrls <- a.GeneratorURL
 		}
 
-		//_ = res.WriteString("ok")
-		return nil
+		return res.WriteString("ok")
 	}
 }
 

@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+const (
+	notifyDelay = time.Hour * 6
+)
+
 type Alert struct {
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
@@ -23,48 +27,74 @@ type Alert struct {
 	ActiveAt time.Time `json:"activeAt"`
 }
 
-func (app *App) processNewUrl(alertUrl string) {
-	if app.numAlerts.Load() > 50 {
-		app.logger.Errorf("too many active urls")
-		return
-	}
+type AlertRec struct {
+	Alert      *Alert    `json:"alert"`
+	Url        string    `json:"url"`
+	LastNotify time.Time `json:"last_notify"`
+}
 
-	if _, ok := app.alerts.LoadOrStore(alertUrl, true); ok {
+func (app *App) processNewUrl(alertUrl string) {
+	if _, ok := app.alerts.Load(alertUrl); ok {
 		return
 	}
 
 	app.logger.Infof("new alert: %s", alertUrl)
 
-	app.numAlerts.Inc()
-	defer func() {
-		app.numAlerts.Dec()
-		app.alerts.Delete(alertUrl)
-	}()
+	alert, _, err := getAlert(alertUrl)
 
-	resp, err := http.Get(alertUrl)
 	if err != nil {
-		app.logger.Errorf("error getting url %s: %s", alertUrl, err.Error())
-		return
+		app.logger.Errorf("error getting alert: %s", err.Error())
 	}
-	defer resp.Body.Close()
 
-	for true {
-		alert, done, err := getAlert(alertUrl)
-		if err != nil {
-			app.logger.Errorf("%v", err)
-		}
-		if done {
-			return
-		}
-
-		if alert != nil {
-			app.notify("kott", alert)
-		}
-
-		time.Sleep(time.Hour * 3)
+	if alert != nil && alert.State != "inactive" {
+		app.alerts.Store(alertUrl, &AlertRec{Alert: alert, Url: alertUrl, LastNotify: time.Now()})
+		app.notify("kott", alert, false)
 	}
 }
 
+func (app *App) alertProcessor() {
+	for {
+		app.alerts.Range(func(key, value interface{}) bool {
+			alert, stop, err := getAlert(key.(string))
+
+			if stop {
+				app.logger.Infof("remove %s alert (404)", key)
+				if ar, ok := value.(*AlertRec); ok {
+					app.notify("kott", ar.Alert, true)
+				}
+				app.alerts.Delete(key)
+				return true
+			}
+
+			if err != nil {
+				app.logger.Errorf("error getting alert %s: %s", key, err.Error())
+				return true
+			}
+
+			if alert.State == "inactive" {
+				app.logger.Infof("alert %s inactive", key)
+				app.alerts.Delete(key)
+				app.notify("kott", alert, true)
+				return true
+			}
+
+			if ar, ok := value.(*AlertRec); ok {
+				ar.Alert = alert
+				if time.Now().After(ar.LastNotify.Add(notifyDelay)) {
+					app.notify("kott", alert, false)
+					ar.LastNotify = time.Now()
+				}
+				app.alerts.Store(key, ar)
+			} else {
+				app.logger.Errorf("invalid value: %v", value)
+				app.alerts.Store(key, &AlertRec{Alert: alert, LastNotify: time.Now()})
+			}
+			return true
+		})
+
+		time.Sleep(time.Second)
+	}
+}
 func getAlert(alertUrl string) (*Alert, bool, error) {
 	cl := http.Client{Timeout: time.Second * 3}
 
@@ -72,10 +102,15 @@ func getAlert(alertUrl string) (*Alert, bool, error) {
 	if err != nil {
 		return nil, false, fmt.Errorf("error getting url %s: %s", alertUrl, err.Error())
 	}
+
 	defer resp.Body.Close()
 
-	if resp.StatusCode > 299 {
+	if resp.StatusCode == 404 {
 		return nil, true, fmt.Errorf("error getting url %s: status %d", alertUrl, resp.StatusCode)
+	}
+
+	if resp.StatusCode > 299 {
+		return nil, false, fmt.Errorf("error getting url %s: status %d", alertUrl, resp.StatusCode)
 	}
 
 	alert := new(Alert)
@@ -87,7 +122,7 @@ func getAlert(alertUrl string) (*Alert, bool, error) {
 	return alert, false, nil
 }
 
-func (app *App) notify(name string, alert *Alert) {
+func (app *App) notify(name string, alert *Alert, good bool) {
 	id, err := app.IdByName(name)
 
 	if err != nil {
@@ -96,11 +131,23 @@ func (app *App) notify(name string, alert *Alert) {
 	}
 
 	sb := strings.Builder{}
-	sb.WriteString(fmt.Sprintf("%s %s\n", alert.Name, alert.State))
-	sb.WriteString(fmt.Sprintf("%s\n", alert.Annotations.Summary))
-	sb.WriteString(fmt.Sprintf("%s\n", alert.Annotations.Description))
-
-	if err := app.send(name, id, sb.String()); err != nil {
+	if good {
+		sb.WriteString(fmt.Sprintf("\u2705 %s is good\n", alert.Name))
+	} else {
+		sb.WriteString(fmt.Sprintf("\u26a0 %s %s\n", alert.Name, alert.State))
+		if sev, ok := alert.Labels["severity"]; ok {
+			sb.WriteString(fmt.Sprintf("Severity: %s\n", sev))
+		}
+		sb.WriteString(fmt.Sprintf("%s\n", alert.Annotations.Summary))
+		sb.WriteString(fmt.Sprintf("%s\n", alert.Annotations.Description))
+		for k, v := range alert.Labels {
+			sb.WriteString(k)
+			sb.WriteString(": ")
+			sb.WriteString(v)
+			sb.WriteString(", ")
+		}
+	}
+	if err := app.sendMode(name, id, sb.String(), "HTML"); err != nil {
 		app.logger.Errorf("can't send to %s: %s", name, err.Error())
 	}
 }

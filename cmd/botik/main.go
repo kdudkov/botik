@@ -17,7 +17,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/kdudkov/goatak/cotxml"
 	"github.com/spf13/viper"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"botik/answer"
@@ -35,7 +34,6 @@ type App struct {
 	logger    *zap.SugaredLogger
 	alerts    sync.Map
 	alertUrls chan string
-	numAlerts atomic.Int32
 }
 
 func NewApp(logger *zap.SugaredLogger) (app *App) {
@@ -43,7 +41,6 @@ func NewApp(logger *zap.SugaredLogger) (app *App) {
 		logger:    logger,
 		alertUrls: make(chan string, 20),
 		alerts:    sync.Map{},
-		numAlerts: atomic.Int32{},
 	}
 	return
 }
@@ -73,7 +70,11 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 		}
 
 		app.logger.Infof("start listener on %s, path %s", viper.GetString("webhook.listen"), viper.GetString("webhook.path"))
-		go http.ListenAndServe(viper.GetString("webhook.listen"), nil)
+		go func() {
+			if err := http.ListenAndServe(viper.GetString("webhook.listen"), nil); err != nil {
+				panic(err)
+			}
+		}()
 
 		return app.bot.ListenForWebhook(viper.GetString("webhook.path"))
 	}
@@ -136,6 +137,8 @@ func (app *App) Run() {
 			go app.processNewUrl(alertUrl)
 		}
 	}()
+
+	go app.alertProcessor()
 
 	updates := app.GetUpdatesChannel()
 	for {

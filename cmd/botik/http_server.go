@@ -19,6 +19,7 @@ func runHttpServer(app *App) {
 	a.POST("/send/:NAME", SendHandlerFunc(app))
 	a.POST("/grafana", GrafanaHandlerFunc(app))
 	a.POST("/api/v2/alerts", AlertsHandlerFunc(app))
+	a.GET("/alerts", GetAlertsHandlerFunc(app))
 
 	app.logger.Infof("start listener on %s", a.Address)
 
@@ -136,7 +137,26 @@ func AlertsHandlerFunc(app *App) air.Handler {
 	}
 }
 
+func GetAlertsHandlerFunc(app *App) air.Handler {
+	return func(req *air.Request, res *air.Response) error {
+		list := make([]*AlertRec, 0)
+
+		app.alerts.Range(func(_, value interface{}) bool {
+			if ar, ok := value.(*AlertRec); ok {
+				list = append(list, ar)
+			}
+			return true
+		})
+
+		return res.WriteJSON(list)
+	}
+}
+
 func (app *App) send(name string, id int64, text string) error {
+	return app.sendMode(name, id, text, "MarkdownV2")
+}
+
+func (app *App) sendMode(name string, id int64, text string, mode string) error {
 	logger := app.logger.With("to", name, "id", id)
 
 	if app.bot == nil {
@@ -146,7 +166,7 @@ func (app *App) send(name string, id int64, text string) error {
 
 	go func(s string) {
 		msg := tgbotapi.NewMessage(id, s)
-		msg.ParseMode = "markdown"
+		msg.ParseMode = mode
 		_, err := app.bot.Send(msg)
 
 		if err != nil {

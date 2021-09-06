@@ -9,6 +9,5 @@ require (
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/technoweenie/multipartstreamer v1.0.1 // indirect
-	go.uber.org/atomic v1.7.0
 	go.uber.org/zap v1.19.0
 )

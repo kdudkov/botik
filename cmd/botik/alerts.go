@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 	"time"
@@ -147,7 +148,7 @@ func (app *App) notify(name string, alert *Alert, good bool) {
 			sb.WriteString(", ")
 		}
 	}
-	if err := app.sendMode(name, id, sb.String(), "HTML"); err != nil {
+	if err := app.sendMode(name, id, html.EscapeString(sb.String()), "HTML"); err != nil {
 		app.logger.Errorf("can't send to %s: %s", name, err.Error())
 	}
 }

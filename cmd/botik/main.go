@@ -1,12 +1,10 @@
 package main
 
 import (
-	"crypto/tls"
 	"encoding/xml"
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -46,20 +44,9 @@ func NewApp(logger *zap.SugaredLogger) (app *App) {
 }
 
 func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
-	if _, err := app.bot.RemoveWebhook(); err != nil {
-		app.logger.Errorf("can't remove webhook: %v", err)
-	}
-
 	if webhook := viper.GetString("webhook.ext"); webhook != "" {
+		app.bot.ListenForWebhook(viper.GetString("webhook.path"))
 		app.logger.Infof("starting webhook %s", webhook)
-
-		res, err := app.bot.SetWebhook(tgbotapi.NewWebhook(webhook))
-
-		if err != nil {
-			panic("can't add webhook")
-		}
-
-		app.logger.Info(res.Description)
 
 		info, err := app.bot.GetWebhookInfo()
 		if err != nil {
@@ -92,11 +79,6 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 
 func (app *App) quit() {
 	app.bot.StopReceivingUpdates()
-	if viper.GetString("webhook") != "" {
-		if _, err := app.bot.RemoveWebhook(); err != nil {
-			app.logger.Errorf("can't remove webhook: %v", err)
-		}
-	}
 }
 
 func (app *App) Run() {
@@ -106,21 +88,7 @@ func (app *App) Run() {
 
 	var err error
 
-	if proxy := viper.GetString("proxy"); proxy != "" {
-		proxyUrl, _ := url.Parse(proxy)
-		myClient := &http.Client{Timeout: time.Second * 10, Transport: &http.Transport{
-			Proxy:                 http.ProxyURL(proxyUrl),
-			ResponseHeaderTimeout: time.Second * 5,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-		}}
-		app.bot, err = tgbotapi.NewBotAPIWithClient(viper.GetString("token"), myClient)
-	} else {
-		myClient := &http.Client{Timeout: time.Second * 10, Transport: &http.Transport{
-			ResponseHeaderTimeout: time.Second * 5,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-		}}
-		app.bot, err = tgbotapi.NewBotAPIWithClient(viper.GetString("token"), myClient)
-	}
+	app.bot, err = tgbotapi.NewBotAPI(viper.GetString("token"))
 
 	if err != nil {
 		panic("can't start bot " + err.Error())
@@ -141,6 +109,7 @@ func (app *App) Run() {
 	go app.alertProcessor()
 
 	updates := app.GetUpdatesChannel()
+
 	for {
 		select {
 		case update := <-updates:
@@ -148,7 +117,7 @@ func (app *App) Run() {
 		case <-sigc:
 			app.logger.Info("quit")
 			app.quit()
-			break
+			return
 		}
 	}
 }
@@ -263,7 +232,33 @@ func getLocation(update tgbotapi.Update) *tgbotapi.Location {
 	return nil
 }
 
+func (app *App) IdByName(name string) (int64, error) {
+	if ids, ok := app.users[name]; ok {
+		if id, err := strconv.ParseInt(ids, 10, 64); err == nil {
+			return id, nil
+		} else {
+			app.logger.Errorf("can't parse int %s", ids)
+			return 0, err
+		}
+	}
+
+	if ids, ok := app.groups[name]; ok {
+		if id, err := strconv.ParseInt(ids, 10, 64); err == nil {
+			return id, nil
+		} else {
+			app.logger.Errorf("can't parse int %s", ids)
+			return 0, err
+		}
+	}
+
+	return 0, fmt.Errorf("not found")
+}
+
 func (app *App) sendCotMessage(evt *cotxml.Event) {
+	if viper.GetString("cot.server") == "" {
+		return
+	}
+
 	msg, err := xml.Marshal(evt)
 	if err != nil {
 		app.logger.Errorf("marshal error: %v", err)

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"strconv"
 	"time"
 
 	"github.com/aofei/air"
@@ -19,7 +18,8 @@ func runHttpServer(app *App) {
 	a.POST("/send/:NAME", SendHandlerFunc(app))
 	a.POST("/grafana", GrafanaHandlerFunc(app))
 	a.POST("/api/v2/alerts", AlertsHandlerFunc(app))
-	a.GET("/alerts", GetAlertsHandlerFunc(app))
+	a.GET("/api/alerts", GetAlertsHandlerFunc(app))
+	a.GET("/api/alerts/:ID/mute", GetMuteAlertHandlerFunc(app))
 
 	app.logger.Infof("start listener on %s", a.Address)
 
@@ -89,7 +89,7 @@ func SendHandlerFunc(app *App) air.Handler {
 
 func GrafanaHandlerFunc(app *App) air.Handler {
 	return func(req *air.Request, res *air.Response) error {
-		name := "kott"
+		name := notifyUser
 
 		if id, err := app.IdByName(name); err == nil {
 			r := new(GrafanaReq)
@@ -151,11 +151,28 @@ func GetAlertsHandlerFunc(app *App) air.Handler {
 	}
 }
 
-func (app *App) send(name string, id int64, text string) error {
-	return app.sendMode(name, id, text, "MarkdownV2")
+func GetMuteAlertHandlerFunc(app *App) air.Handler {
+	return func(req *air.Request, res *air.Response) error {
+		id := req.Param("ID").Value().String()
+
+		app.alerts.Range(func(_, value interface{}) bool {
+			if ar, ok := value.(*AlertRec); ok {
+				if ar.Alert.ID == id {
+					ar.Muted = true
+				}
+			}
+			return true
+		})
+
+		return res.WriteString("ok")
+	}
 }
 
-func (app *App) sendMode(name string, id int64, text string, mode string) error {
+func (app *App) send(name string, id int64, text string) error {
+	return app.sendWithMode(name, id, text, "MarkdownV2")
+}
+
+func (app *App) sendWithMode(name string, id int64, text string, mode string) error {
 	logger := app.logger.With("to", name, "id", id)
 
 	if app.bot == nil {
@@ -174,28 +191,6 @@ func (app *App) sendMode(name string, id int64, text string, mode string) error 
 	}(text)
 
 	return nil
-}
-
-func (app *App) IdByName(name string) (int64, error) {
-	if ids, ok := app.users[name]; ok {
-		if id, err := strconv.ParseInt(ids, 10, 64); err == nil {
-			return id, nil
-		} else {
-			app.logger.Errorf("can't parse int %s", ids)
-			return 0, err
-		}
-	}
-
-	if ids, ok := app.groups[name]; ok {
-		if id, err := strconv.ParseInt(ids, 10, 64); err == nil {
-			return id, nil
-		} else {
-			app.logger.Errorf("can't parse int %s", ids)
-			return 0, err
-		}
-	}
-
-	return 0, fmt.Errorf("not found")
 }
 
 func MakeGrafanaMsg(r *GrafanaReq) string {

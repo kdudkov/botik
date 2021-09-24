@@ -1,5 +1,7 @@
 proxy: http://51.38.91.21:8080
 token: #tour_token_here#
+http:
+    address: ":8055"
 webhook:
  ext: https://google.com/hook1
  path: /hook1

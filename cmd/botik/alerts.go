@@ -11,7 +11,7 @@ import (
 
 const (
 	notifyDelay = time.Hour * 3
-	notifyUser = "kott"
+	notifyUser  = "kott"
 )
 
 type Alert struct {

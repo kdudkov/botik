@@ -45,7 +45,6 @@ func NewApp(logger *zap.SugaredLogger) (app *App) {
 
 func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 	if webhook := viper.GetString("webhook.ext"); webhook != "" {
-		app.bot.ListenForWebhook(viper.GetString("webhook.path"))
 		app.logger.Infof("starting webhook %s", webhook)
 
 		info, err := app.bot.GetWebhookInfo()

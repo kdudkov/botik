@@ -87,7 +87,7 @@ func (app *App) alertProcessor() {
 
 				alertRec.Alert = alert
 
-				if !alertRec.Muted && severity == "Critical" && time.Now().After(alertRec.LastNotify.Add(notifyDelay)) {
+				if !alertRec.Muted && severity == "critical" && time.Now().After(alertRec.LastNotify.Add(notifyDelay)) {
 					app.notify(notifyUser, alert, false)
 					alertRec.LastNotify = time.Now()
 				}

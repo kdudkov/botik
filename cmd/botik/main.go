@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -47,12 +48,20 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 	if webhook := viper.GetString("webhook.ext"); webhook != "" {
 		app.logger.Infof("starting webhook %s", webhook)
 
-		info, err := app.bot.GetWebhookInfo()
+		_, _ = app.bot.RemoveWebhook()
+
+		url, err := url.Parse(webhook)
+
 		if err != nil {
 			app.logger.Fatal(err)
 		}
-		if info.LastErrorDate != 0 {
-			app.logger.Infof("Telegram callback failed: %s", info.LastErrorMessage)
+
+		info, err := app.bot.SetWebhook(tgbotapi.WebhookConfig{
+			URL: url,
+		})
+
+		if err != nil || !info.Ok {
+			app.logger.Fatal(err)
 		}
 
 		app.logger.Infof("start listener on %s, path %s", viper.GetString("webhook.listen"), viper.GetString("webhook.path"))
@@ -66,6 +75,7 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 	}
 
 	app.logger.Info("start polling")
+	_, _ = app.bot.RemoveWebhook()
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
@@ -78,6 +88,9 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 
 func (app *App) quit() {
 	app.bot.StopReceivingUpdates()
+	if webhook := viper.GetString("webhook.ext"); webhook != "" {
+		_, _ = app.bot.RemoveWebhook()
+	}
 }
 
 func (app *App) Run() {

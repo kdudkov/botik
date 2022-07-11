@@ -139,13 +139,17 @@ func (app *App) notify(name string, alert *Alert, good bool) {
 
 	sb := strings.Builder{}
 	if good {
-		sb.WriteString(fmt.Sprintf("%s %s is good\n", em_white_check_mark, alert.Name))
+		sb.WriteString(fmt.Sprintf("%s %s is good\n", em_green_square, alert.Name))
 	} else {
 		var severity = "unknown"
 		if sev, ok := alert.Labels["severity"]; ok {
 			severity = sev
 		}
-		sb.WriteString(fmt.Sprintf("%s %s [%s]\n\n", em_warning, alert.Name, severity))
+		icon := em_yellow_square
+		if severity == "critical" {
+			icon = em_red_square
+		}
+		sb.WriteString(fmt.Sprintf("%s %s [%s]\n\n", icon, alert.Name, severity))
 		sb.WriteString(fmt.Sprintf("%s\n", alert.Annotations.Summary))
 		sb.WriteString(fmt.Sprintf("%s\n", alert.Annotations.Description))
 		for k, v := range alert.Labels {

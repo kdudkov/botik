@@ -6,4 +6,9 @@ var (
 	em_police_car_light = "\U0001f6a8"
 	em_ok_button        = "\U0001f197"
 	em_fire             = "\U0001f525"
+
+	em_red_square    = "\U0001F7E5"
+	em_green_square  = "\U0001F7E9"
+	em_yellow_square = "\U0001F7E8"
+	em_black_square  = "\U00002b1b"
 )

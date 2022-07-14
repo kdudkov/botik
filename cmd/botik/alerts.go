@@ -132,6 +132,15 @@ func fetchAlertInfo(alertUrl string) (*Alert, error) {
 func (app *App) notify(name string, alert *Alert, good bool) {
 	id, err := app.IdByName(name)
 
+	var severity = "unknown"
+	if sev, ok := alert.Labels["severity"]; ok {
+		severity = sev
+	}
+
+	if severity != "critical" {
+		return
+	}
+
 	if err != nil {
 		app.logger.Warnf("user not found: %s", name)
 		return
@@ -141,10 +150,6 @@ func (app *App) notify(name string, alert *Alert, good bool) {
 	if good {
 		sb.WriteString(fmt.Sprintf("%s %s is good\n", em_green_square, alert.Name))
 	} else {
-		var severity = "unknown"
-		if sev, ok := alert.Labels["severity"]; ok {
-			severity = sev
-		}
 		icon := em_yellow_square
 		if severity == "critical" {
 			icon = em_red_square

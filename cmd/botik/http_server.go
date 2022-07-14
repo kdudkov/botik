@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/aofei/air"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/spf13/viper"
 )
 
@@ -181,7 +181,7 @@ func (app *App) sendWithMode(name string, id int64, text string, mode string) er
 	}
 
 	go func(s string) {
-		msg := tgbotapi.NewMessage(id, s)
+		msg := tg.NewMessage(id, s)
 		msg.ParseMode = mode
 		_, err := app.bot.Send(msg)
 

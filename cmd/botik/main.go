@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -13,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/kdudkov/goatak/cotxml"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -27,7 +26,7 @@ var (
 )
 
 type App struct {
-	bot       *tgbotapi.BotAPI
+	bot       *tg.BotAPI
 	users     map[string]string
 	groups    map[string]string
 	logger    *zap.SugaredLogger
@@ -44,24 +43,23 @@ func NewApp(logger *zap.SugaredLogger) (app *App) {
 	return
 }
 
-func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
+func (app *App) GetUpdatesChannel() (tg.UpdatesChannel, error) {
 	if webhook := viper.GetString("webhook.ext"); webhook != "" {
 		app.logger.Infof("starting webhook %s", webhook)
 
-		_, _ = app.bot.RemoveWebhook()
-
-		url, err := url.Parse(webhook)
-
-		if err != nil {
-			app.logger.Fatal(err)
+		wh, _ := tg.NewWebhook(webhook)
+		if _, err := app.bot.Request(wh); err != nil {
+			return nil, err
 		}
 
-		info, err := app.bot.SetWebhook(tgbotapi.WebhookConfig{
-			URL: url,
-		})
+		info, err := app.bot.GetWebhookInfo()
+		if err != nil {
+			return nil, err
+		}
 
-		if err != nil || !info.Ok {
-			app.logger.Fatal(err)
+		if info.LastErrorDate != 0 {
+			app.logger.Errorf("Telegram callback failed: %s", info.LastErrorMessage)
+			return nil, fmt.Errorf(info.LastErrorMessage)
 		}
 
 		app.logger.Infof("start listener on %s, path %s", viper.GetString("webhook.listen"), viper.GetString("webhook.path"))
@@ -71,25 +69,27 @@ func (app *App) GetUpdatesChannel() tgbotapi.UpdatesChannel {
 			}
 		}()
 
-		return app.bot.ListenForWebhook(viper.GetString("webhook.path"))
+		return app.bot.ListenForWebhook(viper.GetString("webhook.path")), nil
 	}
 
 	app.logger.Info("start polling")
-	_, _ = app.bot.RemoveWebhook()
-	u := tgbotapi.NewUpdate(0)
+	app.removeWebhook()
+	u := tg.NewUpdate(0)
 	u.Timeout = 60
 
-	ch, err := app.bot.GetUpdatesChan(u)
-	if err != nil {
-		panic("can't add webhook")
-	}
-	return ch
+	return app.bot.GetUpdatesChan(u), nil
 }
 
 func (app *App) quit() {
 	app.bot.StopReceivingUpdates()
 	if webhook := viper.GetString("webhook.ext"); webhook != "" {
-		_, _ = app.bot.RemoveWebhook()
+		app.removeWebhook()
+	}
+}
+
+func (app *App) removeWebhook() {
+	if _, err := app.bot.Request(tg.WebhookConfig{URL: nil}); err != nil {
+		app.logger.Errorf("remove webhook error: %v", err)
 	}
 }
 
@@ -100,7 +100,7 @@ func (app *App) Run() {
 
 	var err error
 
-	app.bot, err = tgbotapi.NewBotAPI(viper.GetString("token"))
+	app.bot, err = tg.NewBotAPI(viper.GetString("token"))
 
 	if err != nil {
 		panic("can't start bot " + err.Error())
@@ -120,7 +120,12 @@ func (app *App) Run() {
 
 	go app.alertProcessor()
 
-	updates := app.GetUpdatesChannel()
+	updates, err := app.GetUpdatesChannel()
+
+	if err != nil {
+		app.logger.Error(err.Error())
+		return
+	}
 
 	for {
 		select {
@@ -134,8 +139,8 @@ func (app *App) Run() {
 	}
 }
 
-func (app *App) Process(update tgbotapi.Update) {
-	var message *tgbotapi.Message
+func (app *App) Process(update tg.Update) {
+	var message *tg.Message
 
 	if update.EditedMessage != nil {
 		message = update.EditedMessage
@@ -159,7 +164,7 @@ func (app *App) Process(update tgbotapi.Update) {
 
 	if user == "" {
 		logger.Infof("unknown user, msg: %s", message.Text)
-		msg := tgbotapi.NewMessage(message.Chat.ID, "с незнакомыми не разговариваю")
+		msg := tg.NewMessage(message.Chat.ID, "с незнакомыми не разговариваю")
 		_, err := app.bot.Send(msg)
 
 		if err != nil {
@@ -191,12 +196,12 @@ func (app *App) Process(update tgbotapi.Update) {
 	logger.Infof("message: %s", message.Text)
 
 	ans := answer.CheckAnswer(user, message.Text)
-	var msg tgbotapi.Chattable
+	var msg tg.Chattable
 
 	if ans.Photo != "" {
-		msg = tgbotapi.NewPhotoUpload(message.Chat.ID, ans.Photo)
+		msg = tg.NewPhoto(message.Chat.ID, tg.FilePath(ans.Photo))
 	} else {
-		msg = tgbotapi.NewMessage(message.Chat.ID, ans.Msg)
+		msg = tg.NewMessage(message.Chat.ID, ans.Msg)
 	}
 
 	//msg.ReplyToMessageID = update.Message.MessageID
@@ -208,8 +213,8 @@ func (app *App) Process(update tgbotapi.Update) {
 	}
 }
 
-func (app *App) getUser(id int) string {
-	sid := strconv.Itoa(id)
+func (app *App) getUser(id int64) string {
+	sid := strconv.Itoa(int(id))
 	for u, id := range app.users {
 		if id == sid {
 			return u
@@ -234,7 +239,7 @@ func makeEvent(id, name string, lat, lon float64) *cotxml.Event {
 	return evt
 }
 
-func getLocation(update tgbotapi.Update) *tgbotapi.Location {
+func getLocation(update tg.Update) *tg.Location {
 	if update.EditedMessage != nil {
 		return update.EditedMessage.Location
 	}

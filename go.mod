@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/aofei/air v0.22.0
-	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
+	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/kdudkov/goatak v0.2.0
 	github.com/spf13/viper v1.12.0
 	github.com/stretchr/testify v1.8.0
@@ -32,7 +32,6 @@ require (
 	github.com/subosito/gotenv v1.3.0 // indirect
 	github.com/tdewolff/minify/v2 v2.9.16 // indirect
 	github.com/tdewolff/parse/v2 v2.5.15 // indirect
-	github.com/technoweenie/multipartstreamer v1.0.1 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.3.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect

@@ -10,5 +10,12 @@ var (
 	em_red_square    = "\U0001F7E5"
 	em_green_square  = "\U0001F7E9"
 	em_yellow_square = "\U0001F7E8"
+	em_orange_square = "\U0001F7E7"
 	em_black_square  = "\U00002b1b"
+
+	em_red_circle    = "\U0001F534"
+	em_green_circle  = "\U0001F7E2"
+	em_yellow_circle = "\U0001F7E1"
+	em_orange_circle = "\U0001F7E0"
+	em_black_circle  = "\U000026AB"
 )

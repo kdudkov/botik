@@ -1,29 +1,28 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"time"
 
-	"github.com/aofei/air"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/spf13/viper"
 )
 
 func runHttpServer(app *App) {
-	a := air.Default
-	a.Address = viper.GetString("http.address")
+	a := fiber.New()
+	a.Use(logger.New())
 
-	a.POST("/send/:NAME", SendHandlerFunc(app))
-	a.POST("/grafana", GrafanaHandlerFunc(app))
-	a.POST("/api/v2/alerts", AlertsHandlerFunc(app))
-	a.GET("/api/alerts", GetAlertsHandlerFunc(app))
-	a.GET("/api/alerts/:ID/mute", GetMuteAlertHandlerFunc(app))
+	a.Post("/send/:name", SendHandlerFunc(app))
+	a.Post("/grafana", GrafanaHandlerFunc(app))
+	a.Post("/api/v2/alerts", AlertsHandlerFunc(app))
+	a.Get("/api/alerts", GetAlertsHandlerFunc(app))
+	a.Get("/api/alerts/:id/mute", GetMuteAlertHandlerFunc(app))
 
-	app.logger.Infof("start listener on %s", a.Address)
+	app.logger.Infof("start listener on %s", viper.GetString("http.address"))
 
-	if err := a.Serve(); err != nil {
+	if err := a.Listen(viper.GetString("http.address")); err != nil {
 		app.logger.Errorf("server error: %v", err)
 	}
 }
@@ -57,70 +56,68 @@ type AlertReq struct {
 	} `json:"annotations"`
 }
 
-func SendHandlerFunc(app *App) air.Handler {
-	return func(req *air.Request, res *air.Response) error {
-		name := req.Param("NAME")
+func SendHandlerFunc(app *App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		name := c.Params("name")
 
-		if name == nil {
+		if name == "" {
 			app.logger.Errorf("nil name")
-			return air.DefaultNotFoundHandler(req, res)
+			c.WriteString("no name")
+			return c.SendStatus(fiber.StatusNotFound)
 		}
 
-		if id, err := app.IdByName(name.Value().String()); err == nil {
-			body, _ := ioutil.ReadAll(req.Body)
+		if id, err := app.IdByName(name); err == nil {
 
-			if body == nil || len(body) == 0 {
-				_ = res.WriteString("empty body")
+			body := c.Body()
+
+			if len(body) == 0 {
+				c.WriteString("empty body")
 				return nil
 			}
 
-			if err := app.send(name.Value().String(), id, string(body)); err != nil {
-				_ = res.WriteString(err.Error())
+			if err := app.send(name, id, string(body)); err != nil {
+				_, _ = c.WriteString(err.Error())
 				return nil
 			}
-			_ = res.WriteString("ok")
+			_, _ = c.WriteString("ok")
 			return nil
 		}
 
 		app.logger.Warnf("user not found: %s", name)
-		return air.DefaultNotFoundHandler(req, res)
+		return c.SendStatus(fiber.StatusNotFound)
 	}
 }
 
-func GrafanaHandlerFunc(app *App) air.Handler {
-	return func(req *air.Request, res *air.Response) error {
+func GrafanaHandlerFunc(app *App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		name := notifyUser
 
 		if id, err := app.IdByName(name); err == nil {
 			r := new(GrafanaReq)
-
-			m := json.NewDecoder(req.Body)
-			if err := m.Decode(r); err != nil {
+			if err := c.BodyParser(r); err != nil {
 				return err
 			}
 
 			text := MakeGrafanaMsg(r)
 
 			if err := app.send(name, id, text); err != nil {
-				_ = res.WriteString(err.Error())
+				_, _ = c.WriteString(err.Error())
 				return nil
 			}
-			_ = res.WriteString("ok")
+			_, _ = c.WriteString("ok")
 			return nil
 		}
 
 		app.logger.Warnf("user not found: %s", name)
-		return air.DefaultNotFoundHandler(req, res)
+		return c.SendStatus(fiber.StatusNotFound)
 	}
 }
 
-func AlertsHandlerFunc(app *App) air.Handler {
-	return func(req *air.Request, res *air.Response) error {
+func AlertsHandlerFunc(app *App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		list := new([]AlertReq)
 
-		m := json.NewDecoder(req.Body)
-		if err := m.Decode(list); err != nil {
-			app.logger.Errorf("error decoding json, %s", err.Error())
+		if err := c.BodyParser(list); err != nil {
 			return err
 		}
 
@@ -132,12 +129,13 @@ func AlertsHandlerFunc(app *App) air.Handler {
 			app.alertUrls <- a.GeneratorURL
 		}
 
-		return res.WriteString("ok")
+		_, _ = c.WriteString("ok")
+		return nil
 	}
 }
 
-func GetAlertsHandlerFunc(app *App) air.Handler {
-	return func(req *air.Request, res *air.Response) error {
+func GetAlertsHandlerFunc(app *App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		list := make([]*AlertRec, 0)
 
 		app.alerts.Range(func(_, value interface{}) bool {
@@ -147,13 +145,13 @@ func GetAlertsHandlerFunc(app *App) air.Handler {
 			return true
 		})
 
-		return res.WriteJSON(list)
+		return c.JSON(list)
 	}
 }
 
-func GetMuteAlertHandlerFunc(app *App) air.Handler {
-	return func(req *air.Request, res *air.Response) error {
-		id := req.Param("ID").Value().String()
+func GetMuteAlertHandlerFunc(app *App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		id := c.Params("id")
 
 		app.alerts.Range(func(_, value interface{}) bool {
 			if ar, ok := value.(*AlertRec); ok {
@@ -164,7 +162,8 @@ func GetMuteAlertHandlerFunc(app *App) air.Handler {
 			return true
 		})
 
-		return res.WriteString("ok")
+		_, _ = c.WriteString("ok")
+		return nil
 	}
 }
 

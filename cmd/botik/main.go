@@ -13,11 +13,12 @@ import (
 	"time"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/kdudkov/goatak/cotxml"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	"botik/answer"
+
+	"github.com/kdudkov/goatak/cot"
 )
 
 var (
@@ -223,18 +224,15 @@ func (app *App) getUser(id int64) string {
 	return ""
 }
 
-func makeEvent(id, name string, lat, lon float64) *cotxml.Event {
-	evt := cotxml.BasicMsg("a-f-G", id, time.Hour)
-	evt.Detail = cotxml.Detail{
-		Group:   &cotxml.Group{Name: "Red", Role: "Team Member"},
-		Contact: &cotxml.Contact{Callsign: name},
-	}
+func makeEvent(id, name string, lat, lon float64) *cot.Event {
+	evt := cot.XmlBasicMsg("a-f-G", id, time.Hour)
 	evt.Point.Lon = lon
 	evt.Point.Lat = lat
-	evt.Detail.TakVersion = &cotxml.TakVersion{}
-	evt.Detail.TakVersion.Platform = "Telegram bot"
-	evt.Detail.TakVersion.Version = "0.1"
-	evt.Detail.TakVersion.Os = "linux-amd64"
+
+	evt.Detail = cot.NewXmlDetails()
+	evt.Detail.AddChild("contact", map[string]string{"callsign": name}, "")
+	evt.Detail.AddChild("__group", map[string]string{"name": "Red", "Role": "Team member"}, "")
+	evt.Detail.AddChild("takv", map[string]string{"planform": "Telegram bot", "version": gitRevision, "os": ""}, "")
 
 	return evt
 }
@@ -271,7 +269,7 @@ func (app *App) IdByName(name string) (int64, error) {
 	return 0, fmt.Errorf("not found")
 }
 
-func (app *App) sendCotMessage(evt *cotxml.Event) {
+func (app *App) sendCotMessage(evt *cot.Event) {
 	if viper.GetString("cot.server") == "" {
 		return
 	}

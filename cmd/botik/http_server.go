@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -48,8 +49,8 @@ type GrafanaReq struct {
 
 type AlertReq struct {
 	StartsAt     time.Time         `json:"startsAt"`
-	GeneratorURL string            `json:"generatorURL"`
 	EndsAt       time.Time         `json:"endsAt"`
+	GeneratorURL string            `json:"generatorURL"`
 	Labels       map[string]string `json:"labels"`
 	Annotations  struct {
 		Summary string `json:"summary"`
@@ -126,7 +127,8 @@ func AlertsHandlerFunc(app *App) fiber.Handler {
 		}
 
 		for _, a := range *list {
-			app.alertUrls <- a.GeneratorURL
+			url := strings.ReplaceAll(a.GeneratorURL, "/vmalert/alert?", "/api/v1/alert?")
+			app.alertUrls <- url
 		}
 
 		_, _ = c.WriteString("ok")

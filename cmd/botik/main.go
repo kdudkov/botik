@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -229,10 +230,9 @@ func makeEvent(id, name string, lat, lon float64) *cot.Event {
 	evt.Point.Lon = lon
 	evt.Point.Lat = lat
 
-	evt.Detail = cot.NewXmlDetails()
-	evt.Detail.AddChild("contact", map[string]string{"callsign": name}, "")
-	evt.Detail.AddChild("__group", map[string]string{"name": "Red", "Role": "Team member"}, "")
-	evt.Detail.AddChild("takv", map[string]string{"planform": "Telegram bot", "version": gitRevision, "os": ""}, "")
+	evt.AddGroup("Red", "Team member")
+	evt.AddCallsign(name, "", false)
+	evt.AddVersion("Telegram bot", runtime.GOARCH, runtime.GOOS, gitRevision)
 
 	return evt
 }

@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gofiber/fiber/v2 v2.40.1
-	github.com/kdudkov/goatak v0.4.0
+	github.com/kdudkov/goatak v0.4.1
 	github.com/spf13/viper v1.14.0
 	github.com/stretchr/testify v1.8.1
 	go.uber.org/zap v1.23.0

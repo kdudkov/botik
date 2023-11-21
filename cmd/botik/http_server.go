@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"html"
 	"strings"
 	"time"
 
@@ -76,7 +77,7 @@ func SendHandlerFunc(app *App) fiber.Handler {
 				return nil
 			}
 
-			if err := app.send(name, id, string(body)); err != nil {
+			if err := app.sendWithMode(name, id, html.EscapeString(string(body)), "HTML"); err != nil {
 				_, _ = c.WriteString(err.Error())
 				return nil
 			}

@@ -41,12 +41,12 @@ func (app *App) processNewUrl(alertUrl string) {
 		return
 	}
 
-	app.logger.Infof("new alert: %s", alertUrl)
+	app.logger.Info("new alert: " + alertUrl)
 
 	alert, err := fetchAlertInfo(alertUrl)
 
 	if err != nil {
-		app.logger.Errorf("error getting alert: %s", err.Error())
+		app.logger.Error("error getting alert", "error", err)
 	}
 
 	if alert != nil && alert.State != "inactive" {
@@ -62,19 +62,19 @@ func (app *App) alertProcessor() {
 				alert, err := fetchAlertInfo(key.(string))
 
 				if err != nil {
-					app.logger.Errorf("error getting alert %s: %s", key, err.Error())
+					app.logger.Error(fmt.Sprintf("error getting alert %v", key), "error", err.Error())
 					return true
 				}
 
 				if alert == nil {
-					app.logger.Infof("remove %s alert (404)", key)
+					app.logger.Info(fmt.Sprintf("remove %s alert (404)", key))
 					app.notify(notifyUser, alertRec.Alert, true)
 					app.alerts.Delete(key)
 					return true
 				}
 
 				if alert.State == "inactive" {
-					app.logger.Infof("alert %s inactive", key)
+					app.logger.Info(fmt.Sprintf("alert %s inactive", key))
 					app.alerts.Delete(key)
 					app.notify(notifyUser, alert, true)
 					return true
@@ -94,7 +94,7 @@ func (app *App) alertProcessor() {
 				app.alerts.Store(key, alertRec)
 
 			} else {
-				app.logger.Errorf("invalid value: %v", value)
+				app.logger.Error(fmt.Sprintf("invalid value: %v", value))
 			}
 
 			return true
@@ -123,7 +123,7 @@ func fetchAlertInfo(alertUrl string) (*Alert, error) {
 	alert := new(Alert)
 	m := json.NewDecoder(resp.Body)
 	if err := m.Decode(alert); err != nil {
-		return nil, fmt.Errorf("json decode error: %s", err.Error())
+		return nil, fmt.Errorf("json decode error", "error", err)
 	}
 
 	return alert, nil
@@ -142,7 +142,7 @@ func (app *App) notify(name string, alert *Alert, good bool) {
 	}
 
 	if err != nil {
-		app.logger.Warnf("user not found: %s", name)
+		app.logger.Warn("user not found: " + name)
 		return
 	}
 
@@ -165,6 +165,6 @@ func (app *App) notify(name string, alert *Alert, good bool) {
 		}
 	}
 	if err := app.sendWithMode(name, id, html.EscapeString(sb.String()), "HTML"); err != nil {
-		app.logger.Errorf("can't send to %s: %s", name, err.Error())
+		app.logger.Error("can't send to "+name, "error", err)
 	}
 }

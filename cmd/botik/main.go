@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/xml"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -31,14 +32,14 @@ type App struct {
 	bot       *tg.BotAPI
 	users     map[string]string
 	groups    map[string]string
-	logger    *zap.SugaredLogger
+	logger    *slog.Logger
 	alerts    sync.Map
 	alertUrls chan string
 }
 
-func NewApp(logger *zap.SugaredLogger) (app *App) {
+func NewApp() (app *App) {
 	app = &App{
-		logger:    logger,
+		logger:    slog.Default(),
 		alertUrls: make(chan string, 20),
 		alerts:    sync.Map{},
 	}
@@ -47,7 +48,7 @@ func NewApp(logger *zap.SugaredLogger) (app *App) {
 
 func (app *App) GetUpdatesChannel() (tg.UpdatesChannel, error) {
 	if webhook := viper.GetString("webhook.ext"); webhook != "" {
-		app.logger.Infof("starting webhook %s", webhook)
+		app.logger.Info("starting webhook " + webhook)
 
 		wh, _ := tg.NewWebhook(webhook)
 		if _, err := app.bot.Request(wh); err != nil {
@@ -60,11 +61,11 @@ func (app *App) GetUpdatesChannel() (tg.UpdatesChannel, error) {
 		}
 
 		if info.LastErrorDate != 0 {
-			app.logger.Errorf("Telegram callback failed: %s", info.LastErrorMessage)
+			app.logger.Error("Telegram callback failed", "error", info.LastErrorMessage)
 			return nil, fmt.Errorf(info.LastErrorMessage)
 		}
 
-		app.logger.Infof("start listener on %s, path %s", viper.GetString("webhook.listen"), viper.GetString("webhook.path"))
+		app.logger.Info(fmt.Sprintf("start listener on %s, path %s", viper.GetString("webhook.listen"), viper.GetString("webhook.path")))
 		go func() {
 			if err := http.ListenAndServe(viper.GetString("webhook.listen"), nil); err != nil {
 				panic(err)
@@ -91,7 +92,7 @@ func (app *App) quit() {
 
 func (app *App) removeWebhook() {
 	if _, err := app.bot.Request(tg.WebhookConfig{URL: nil}); err != nil {
-		app.logger.Errorf("remove webhook error: %v", err)
+		app.logger.Error("remove webhook error", "error", err)
 	}
 }
 
@@ -107,7 +108,7 @@ func (app *App) Run() {
 	if err != nil {
 		panic("can't start bot " + err.Error())
 	}
-	app.logger.Infof("registering %s", app.bot.Self.String())
+	app.logger.Info("registering " + app.bot.Self.String())
 
 	go runHttpServer(app)
 
@@ -151,12 +152,12 @@ func (app *App) Process(update tg.Update) {
 	}
 
 	if message == nil {
-		app.logger.Warnf("no message: %v", update)
+		app.logger.Warn(fmt.Sprintf("no message: %v", update))
 		return
 	}
 
 	if message.From == nil {
-		app.logger.Warnf("message without from: %v", update)
+		app.logger.Warn(fmt.Sprintf("message without from: %v", update))
 		return
 	}
 
@@ -165,19 +166,19 @@ func (app *App) Process(update tg.Update) {
 	user := app.getUser(message.From.ID)
 
 	if user == "" {
-		logger.Infof("unknown user, msg: %s", message.Text)
+		logger.Info(fmt.Sprintf("unknown user, msg: %s", message.Text))
 		msg := tg.NewMessage(message.Chat.ID, "с незнакомыми не разговариваю")
 		_, err := app.bot.Send(msg)
 
 		if err != nil {
-			logger.Errorf("can't send message: %s", err.Error())
+			logger.Error("can't send message", "error", err.Error())
 		}
 		return
 	}
 
 	// location
 	if loc := getLocation(update); loc != nil {
-		logger.Infof("location: %f %f", loc.Latitude, loc.Longitude)
+		logger.Info(fmt.Sprintf("location: %f %f", loc.Latitude, loc.Longitude))
 		if viper.GetString("cot.server") != "" {
 			evt := makeEvent(fmt.Sprintf("tg-%d", message.From.ID), user, loc.Latitude, loc.Longitude)
 			app.sendCotMessage(evt)
@@ -186,7 +187,7 @@ func (app *App) Process(update tg.Update) {
 	}
 
 	if message.Text == "" {
-		logger.Infof("empty message")
+		logger.Info("empty message")
 		return
 	}
 
@@ -195,7 +196,7 @@ func (app *App) Process(update tg.Update) {
 		return
 	}
 
-	logger.Infof("message: %s", message.Text)
+	logger.Info("message: " + message.Text)
 
 	ans := answer.CheckAnswer(user, message.Text)
 	var msg tg.Chattable
@@ -211,7 +212,7 @@ func (app *App) Process(update tg.Update) {
 	_, err := app.bot.Send(msg)
 
 	if err != nil {
-		logger.Errorf("can't send message: %s", err.Error())
+		logger.Error("can't send message", "error", err.Error())
 	}
 }
 
@@ -252,7 +253,7 @@ func (app *App) IdByName(name string) (int64, error) {
 		if id, err := strconv.ParseInt(ids, 10, 64); err == nil {
 			return id, nil
 		} else {
-			app.logger.Errorf("can't parse int %s", ids)
+			app.logger.Error("can't parse int " + ids)
 			return 0, err
 		}
 	}
@@ -261,7 +262,7 @@ func (app *App) IdByName(name string) (int64, error) {
 		if id, err := strconv.ParseInt(ids, 10, 64); err == nil {
 			return id, nil
 		} else {
-			app.logger.Errorf("can't parse int %s", ids)
+			app.logger.Error("can't parse int " + ids)
 			return 0, err
 		}
 	}
@@ -276,19 +277,19 @@ func (app *App) sendCotMessage(evt *cot.Event) {
 
 	msg, err := xml.Marshal(evt)
 	if err != nil {
-		app.logger.Errorf("marshal error: %v", err)
+		app.logger.Error("marshal error", "error", err)
 		return
 	}
 
 	conn, err := net.Dial("udp", viper.GetString("cot.server"))
 	if err != nil {
-		app.logger.Errorf("connection error: %v", err)
+		app.logger.Error("connection error", "error", err)
 		return
 	}
 
 	conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
 	if _, err := conn.Write(msg); err != nil {
-		app.logger.Errorf("write error: %v", err)
+		app.logger.Error("write error", "error", err)
 	}
 	conn.Close()
 }
@@ -311,10 +312,11 @@ func main() {
 		panic(err.Error())
 	}
 
-	sl := logger.Sugar()
-	sl.Infof("starting app branch %s, rev %s", gitBranch, gitRevision)
+	h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
 
-	app := NewApp(sl)
+	slog.SetDefault(slog.New(h))
+
+	app := NewApp()
 	app.users = viper.GetStringMapString("users")
 	app.groups = viper.GetStringMapString("groups")
 

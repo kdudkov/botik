@@ -22,10 +22,10 @@ func runHttpServer(app *App) {
 	a.Get("/api/alerts", GetAlertsHandlerFunc(app))
 	a.Get("/api/alerts/:id/mute", GetMuteAlertHandlerFunc(app))
 
-	app.logger.Infof("start listener on %s", viper.GetString("http.address"))
+	app.logger.Info("start listener on " + viper.GetString("http.address"))
 
 	if err := a.Listen(viper.GetString("http.address")); err != nil {
-		app.logger.Errorf("server error: %v", err)
+		app.logger.Error("server error", "error", err)
 	}
 }
 
@@ -63,7 +63,7 @@ func SendHandlerFunc(app *App) fiber.Handler {
 		name := c.Params("name")
 
 		if name == "" {
-			app.logger.Errorf("nil name")
+			app.logger.Error("nil name")
 			c.WriteString("no name")
 			return c.SendStatus(fiber.StatusNotFound)
 		}
@@ -85,7 +85,7 @@ func SendHandlerFunc(app *App) fiber.Handler {
 			return nil
 		}
 
-		app.logger.Warnf("user not found: %s", name)
+		app.logger.Warn("user not found: " + name)
 		return c.SendStatus(fiber.StatusNotFound)
 	}
 }
@@ -110,7 +110,7 @@ func GrafanaHandlerFunc(app *App) fiber.Handler {
 			return nil
 		}
 
-		app.logger.Warnf("user not found: %s", name)
+		app.logger.Warn("user not found: " + name)
 		return c.SendStatus(fiber.StatusNotFound)
 	}
 }
@@ -178,7 +178,7 @@ func (app *App) sendWithMode(name string, id int64, text string, mode string) er
 	logger := app.logger.With("to", name, "id", id)
 
 	if app.bot == nil {
-		logger.Warnf("bot is not ready")
+		logger.Warn("bot is not ready")
 		return fmt.Errorf("bot is not connected")
 	}
 
@@ -188,7 +188,7 @@ func (app *App) sendWithMode(name string, id int64, text string, mode string) er
 		_, err := app.bot.Send(msg)
 
 		if err != nil {
-			logger.Errorf("can't send message: %s", err.Error())
+			logger.Error("can't send message", "error", err)
 		}
 	}(text)
 

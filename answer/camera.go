@@ -1,16 +1,15 @@
 package answer
 
 import (
+	"log/slog"
 	"strings"
-
-	"go.uber.org/zap"
 
 	"botik/util"
 )
 
 type Camera struct {
 	img    string
-	logger *zap.SugaredLogger
+	logger *slog.Logger
 }
 
 func NewCamera() *Camera {
@@ -23,8 +22,8 @@ func init() {
 	}
 }
 
-func (cam *Camera) AddLogger(logger *zap.SugaredLogger) {
-	cam.logger = logger.Named("camera")
+func (cam *Camera) AddLogger(logger *slog.Logger) {
+	cam.logger = logger.With("logger", "camera")
 }
 
 func (cam *Camera) Check(user string, msg string) (q *Q) {

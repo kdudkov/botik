@@ -2,17 +2,16 @@ package answer
 
 import (
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"unicode"
-
-	"go.uber.org/zap"
 )
 
 type Answerer interface {
 	Check(user string, msg string) *Q
 	Process(q *Q) *Answer
-	AddLogger(logger *zap.SugaredLogger)
+	AddLogger(logger *slog.Logger)
 }
 
 type Answer struct {

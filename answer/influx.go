@@ -3,12 +3,11 @@ package answer
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-
-	"go.uber.org/zap"
 
 	"botik/api"
 	"botik/util"
@@ -22,7 +21,7 @@ const (
 
 type Influx struct {
 	api    api.InfluxHttpApi
-	logger *zap.SugaredLogger
+	logger *slog.Logger
 	days   uint16
 }
 
@@ -50,8 +49,8 @@ type Pressure struct {
 	Dia  uint16
 }
 
-func (i *Influx) AddLogger(logger *zap.SugaredLogger) {
-	i.logger = logger.Named("influx")
+func (i *Influx) AddLogger(logger *slog.Logger) {
+	i.logger = logger.With("logger", "influx")
 }
 
 func (i *Influx) Check(user string, msg string) (q *Q) {
@@ -90,7 +89,7 @@ func (i *Influx) Process(q *Q) *Answer {
 				}
 				return TextAnswer(res)
 			} else {
-				i.logger.Errorf("error getting pressure %s", err.Error())
+				i.logger.Error("error getting pressure", "error", err)
 				return TextAnswer(err.Error())
 			}
 		}
@@ -100,19 +99,19 @@ func (i *Influx) Process(q *Q) *Answer {
 
 			sys, err := strconv.ParseInt(words[1], 10, 16)
 			if err != nil {
-				i.logger.Errorf("parse error %s", err.Error())
+				i.logger.Error("parse error", "error", err)
 				return TextAnswer(err.Error())
 			}
 			dia, err := strconv.ParseInt(words[2], 10, 16)
 			if err != nil {
-				i.logger.Errorf("parse error %s", err.Error())
+				i.logger.Error("parse error", "error", err)
 				return TextAnswer(err.Error())
 			}
 			if len(words) > 3 {
 				note = strings.Join(words[3:], " ")
 			}
 			if err := i.sendBP(q.User, uint16(sys), uint16(dia), note); err != nil {
-				i.logger.Errorf("send error %s", err.Error())
+				i.logger.Error("send error", "error", err)
 				return TextAnswer("ошибка " + err.Error())
 			} else {
 				return TextAnswer(fmt.Sprintf("записано давление %d/%d", sys, dia))
@@ -126,11 +125,11 @@ func (i *Influx) Process(q *Q) *Answer {
 		if len(words) == 2 {
 			w, err := strconv.ParseFloat(strings.ReplaceAll(words[1], ",", "."), 10)
 			if err != nil {
-				i.logger.Errorf("parse error %s", err.Error())
+				i.logger.Error("parse error", "error", err)
 				return TextAnswer(err.Error())
 			}
 			if err := i.sendWeight(q.User, w, 0); err != nil {
-				i.logger.Errorf("send error %s", err.Error())
+				i.logger.Error("send error", "error", err)
 				return TextAnswer("ошибка " + err.Error())
 			} else {
 				return TextAnswer(fmt.Sprintf("записан вес %.1f", w))

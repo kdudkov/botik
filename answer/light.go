@@ -2,9 +2,8 @@ package answer
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
-
-	"go.uber.org/zap"
 
 	"botik/api"
 )
@@ -22,7 +21,7 @@ const (
 
 type Light struct {
 	mahno  api.MahnoApi
-	logger *zap.SugaredLogger
+	logger *slog.Logger
 }
 
 func init() {
@@ -35,9 +34,9 @@ func NewLight() *Light {
 	return &Light{mahno: api.NewMahnoApi()}
 }
 
-func (l *Light) AddLogger(logger *zap.SugaredLogger) {
-	l.logger = logger.Named("light")
-	l.mahno.SetLogger(logger.Named("mahno_api"))
+func (l *Light) AddLogger(logger *slog.Logger) {
+	l.logger = logger.With("logger", "light")
+	l.mahno.SetLogger(logger.With("logger", "mahno_api"))
 }
 
 func (l *Light) Check(user string, msg string) (q *Q) {
@@ -117,7 +116,7 @@ func (l *Light) Process(q *Q) *Answer {
 			return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
 		}
 
-		l.logger.Infof("light %s ON", target)
+		l.logger.Info("light ON to " + target)
 		err := l.mahno.ItemCommand(target, ON)
 
 		if err != nil {
@@ -130,7 +129,7 @@ func (l *Light) Process(q *Q) *Answer {
 			return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
 		}
 
-		l.logger.Infof("light %s OFF", target)
+		l.logger.Info("light OFF to", target)
 		err := l.mahno.ItemCommand(target, OFF)
 
 		if err != nil {
@@ -139,17 +138,17 @@ func (l *Light) Process(q *Q) *Answer {
 		return TextAnswer(fmt.Sprintf("выключаю %s", target))
 
 	case ALL_ON:
-		l.logger.Infof("all lights on")
+		l.logger.Info("all lights on")
 		allLight(l.mahno, ON)
 		return TextAnswer("включаю весь свет")
 
 	case ALL_OFF:
-		l.logger.Infof("all lights off")
+		l.logger.Info("all lights off")
 		allLight(l.mahno, OFF)
 		return TextAnswer("выключаю весь свет")
 
 	case DAY:
-		l.logger.Infof("home mode day")
+		l.logger.Info("home mode day")
 		err := l.mahno.SetItemState("home_mode", "day")
 
 		if err != nil {
@@ -158,7 +157,7 @@ func (l *Light) Process(q *Q) *Answer {
 		return TextAnswer("дневной режим")
 
 	case NIGHT:
-		l.logger.Infof("home mode night")
+		l.logger.Info("home mode night")
 		allLight(l.mahno, OFF)
 		err := l.mahno.SetItemState("home_mode", "night")
 
@@ -168,7 +167,7 @@ func (l *Light) Process(q *Q) *Answer {
 		return TextAnswer("ночной режим")
 
 	case NOBODY_HOME:
-		l.logger.Infof("home mode nobody")
+		l.logger.Info("home mode nobody")
 		err := l.mahno.SetItemState("home_mode", "nobody_home")
 
 		if err != nil {

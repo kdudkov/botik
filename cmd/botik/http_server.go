@@ -8,13 +8,12 @@ import (
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/spf13/viper"
 )
 
 func runHttpServer(app *App) {
 	a := fiber.New()
-	a.Use(logger.New())
+	//a.Use(logger.New())
 
 	a.Post("/send/:name", SendHandlerFunc(app))
 	a.Post("/grafana", GrafanaHandlerFunc(app))

@@ -132,17 +132,17 @@ func fetchAlertInfo(alertUrl string) (*Alert, error) {
 func (app *App) notify(name string, alert *Alert, good bool) {
 	id, err := app.IdByName(name)
 
+	if err != nil {
+		app.logger.Warn("user not found: " + name)
+		return
+	}
+
 	var severity = "unknown"
 	if sev, ok := alert.Labels["severity"]; ok {
 		severity = sev
 	}
 
 	if severity != "critical" {
-		return
-	}
-
-	if err != nil {
-		app.logger.Warn("user not found: " + name)
 		return
 	}
 

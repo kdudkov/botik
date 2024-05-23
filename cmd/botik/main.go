@@ -1,8 +1,10 @@
 package main
 
 import (
+	"botik/cmd/botik/alert"
 	"encoding/xml"
 	"fmt"
+	"html"
 	"log/slog"
 	"net"
 	"net/http"
@@ -10,6 +12,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -186,13 +189,28 @@ func (app *App) Process(update tg.Update) {
 		}
 	}
 
-	if message.Text == "" {
-		logger.Info("empty message")
+	if rm := message.ReplyToMessage; rm != nil && strings.ToLower(message.Text) == "mute" {
+		app.alerts.Range(func(_, v any) bool {
+			if ar, ok := v.(*alert.AlertRec); ok {
+				if ar.MsgId() == rm.MessageID {
+					ar.Mute()
+					go app.sendTgWithMode(
+						message.From.ID,
+						html.EscapeString(html.EscapeString(fmt.Sprintf("alert %s is muted", ar.Alert().Name))),
+						"HTML",
+					)
+					return false
+				}
+			}
+
+			return true
+		})
+
 		return
 	}
 
-	if update.Message == nil {
-		// edited message
+	if message.Text == "" {
+		logger.Info("empty message")
 		return
 	}
 

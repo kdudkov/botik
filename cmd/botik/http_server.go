@@ -1,6 +1,7 @@
 package main
 
 import (
+	"botik/cmd/botik/alert"
 	"fmt"
 	"html"
 	"strings"
@@ -63,8 +64,8 @@ func SendHandlerFunc(app *App) fiber.Handler {
 
 		if name == "" {
 			app.logger.Error("nil name")
-			c.WriteString("no name")
-			return c.SendStatus(fiber.StatusNotFound)
+
+			return c.Status(fiber.StatusNotFound).SendString("no name")
 		}
 
 		if id, err := app.IdByName(name); err == nil {
@@ -72,16 +73,14 @@ func SendHandlerFunc(app *App) fiber.Handler {
 			body := c.Body()
 
 			if len(body) == 0 {
-				c.WriteString("empty body")
-				return nil
+				return c.SendString("empty body")
 			}
 
-			if err := app.sendWithMode(name, id, html.EscapeString(string(body)), "HTML"); err != nil {
-				_, _ = c.WriteString(err.Error())
-				return nil
+			if _, err := app.sendTgWithMode(id, html.EscapeString(string(body)), "HTML"); err != nil {
+				return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
 			}
-			_, _ = c.WriteString("ok")
-			return nil
+
+			return c.SendString("ok")
 		}
 
 		app.logger.Warn("user not found: " + name)
@@ -91,9 +90,7 @@ func SendHandlerFunc(app *App) fiber.Handler {
 
 func GrafanaHandlerFunc(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		name := notifyUser
-
-		if id, err := app.IdByName(name); err == nil {
+		if id, err := app.IdByName(notifyUser); err == nil {
 			r := new(GrafanaReq)
 			if err := c.BodyParser(r); err != nil {
 				return err
@@ -101,15 +98,14 @@ func GrafanaHandlerFunc(app *App) fiber.Handler {
 
 			text := MakeGrafanaMsg(r)
 
-			if err := app.send(name, id, text); err != nil {
-				_, _ = c.WriteString(err.Error())
-				return nil
+			if _, err := app.sendTg(id, text); err != nil {
+				return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
 			}
-			_, _ = c.WriteString("ok")
-			return nil
+
+			return c.SendString("ok")
 		}
 
-		app.logger.Warn("user not found: " + name)
+		app.logger.Warn("user not found: " + notifyUser)
 		return c.SendStatus(fiber.StatusNotFound)
 	}
 }
@@ -138,11 +134,11 @@ func AlertsHandlerFunc(app *App) fiber.Handler {
 
 func GetAlertsHandlerFunc(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		list := make([]*AlertRec, 0)
+		list := make([]*alert.AlertRecDTO, 0)
 
 		app.alerts.Range(func(_, value interface{}) bool {
-			if ar, ok := value.(*AlertRec); ok {
-				list = append(list, ar)
+			if ar, ok := value.(*alert.AlertRec); ok {
+				list = append(list, ar.DTO())
 			}
 			return true
 		})
@@ -156,42 +152,39 @@ func GetMuteAlertHandlerFunc(app *App) fiber.Handler {
 		id := c.Params("id")
 
 		app.alerts.Range(func(_, value interface{}) bool {
-			if ar, ok := value.(*AlertRec); ok {
-				if ar.Alert.ID == id {
-					ar.Muted = true
+			if ar, ok := value.(*alert.AlertRec); ok {
+				if ar.Alert().ID == id {
+					ar.Mute()
 				}
 			}
 			return true
 		})
 
-		_, _ = c.WriteString("ok")
-		return nil
+		return c.SendString("ok")
 	}
 }
 
-func (app *App) send(name string, id int64, text string) error {
-	return app.sendWithMode(name, id, text, "MarkdownV2")
+func (app *App) sendTg(id int64, text string) (int, error) {
+	return app.sendTgWithMode(id, text, "MarkdownV2")
 }
 
-func (app *App) sendWithMode(name string, id int64, text string, mode string) error {
-	logger := app.logger.With("to", name, "id", id)
+func (app *App) sendTgWithMode(id int64, text string, mode string) (int, error) {
+	logger := app.logger.With("id", id)
 
 	if app.bot == nil {
 		logger.Warn("bot is not ready")
-		return fmt.Errorf("bot is not connected")
+		return 0, fmt.Errorf("bot is not connected")
 	}
 
-	go func(s string) {
-		msg := tg.NewMessage(id, s)
-		msg.ParseMode = mode
-		_, err := app.bot.Send(msg)
+	msg := tg.NewMessage(id, text)
+	msg.ParseMode = mode
+	msg1, err := app.bot.Send(msg)
 
-		if err != nil {
-			logger.Error("can't send message", "error", err)
-		}
-	}(text)
+	if err != nil {
+		logger.Error("can't send message", "error", err)
+	}
 
-	return nil
+	return msg1.MessageID, nil
 }
 
 func MakeGrafanaMsg(r *GrafanaReq) string {

@@ -1,40 +1,22 @@
 package main
 
 import (
+	"botik/cmd/botik/alert"
+	_ "embed"
 	"encoding/json"
 	"fmt"
-	"html"
+	"html/template"
 	"net/http"
 	"strings"
 	"time"
 )
 
 const (
-	notifyDelay = time.Hour * 3
-	notifyUser  = "kott"
+	notifyUser = "kott"
 )
 
-type Alert struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	GroupID     string            `json:"group_id"`
-	Expression  string            `json:"expression"`
-	State       string            `json:"state"`
-	Value       string            `json:"value"`
-	Labels      map[string]string `json:"labels"`
-	Annotations struct {
-		Summary     string `json:"summary"`
-		Description string `json:"description"`
-	} `json:"annotations"`
-	ActiveAt time.Time `json:"activeAt"`
-}
-
-type AlertRec struct {
-	Alert      *Alert    `json:"alert"`
-	Url        string    `json:"url"`
-	LastNotify time.Time `json:"last_notify"`
-	Muted      bool      `json:"muted"`
-}
+//go:embed template/alert
+var alertTpl string
 
 func (app *App) processNewUrl(alertUrl string) {
 	if _, ok := app.alerts.Load(alertUrl); ok {
@@ -43,56 +25,49 @@ func (app *App) processNewUrl(alertUrl string) {
 
 	app.logger.Info("new alert: " + alertUrl)
 
-	alert, err := fetchAlertInfo(alertUrl)
+	alertInfo, err := fetchAlertInfo(alertUrl)
 
 	if err != nil {
 		app.logger.Error("error getting alert", "error", err)
 	}
 
-	if alert != nil && alert.State != "inactive" {
-		app.alerts.Store(alertUrl, &AlertRec{Alert: alert, Url: alertUrl, LastNotify: time.Now()})
-		app.notify(notifyUser, alert, false)
+	if alertInfo != nil && alertInfo.State != "inactive" {
+		ar := alert.NewAlertRec(alertInfo, alertUrl)
+		app.alerts.Store(alertUrl, ar)
+		go app.notifyUser(notifyUser, ar, false)
 	}
 }
 
 func (app *App) alertProcessor() {
 	for {
 		app.alerts.Range(func(key, value interface{}) bool {
-			if alertRec, ok := value.(*AlertRec); ok {
-				alert, err := fetchAlertInfo(key.(string))
+			if alertRec, ok := value.(*alert.AlertRec); ok {
+				alertInfo, err := fetchAlertInfo(key.(string))
 
 				if err != nil {
 					app.logger.Error(fmt.Sprintf("error getting alert %v", key), "error", err.Error())
 					return true
 				}
 
-				if alert == nil {
+				if alertInfo == nil {
 					app.logger.Info(fmt.Sprintf("remove %s alert (404)", key))
-					app.notify(notifyUser, alertRec.Alert, true)
 					app.alerts.Delete(key)
+					go app.notifyUser(notifyUser, alertRec, true)
 					return true
 				}
 
-				if alert.State == "inactive" {
+				alertRec.SetAlert(alertInfo)
+
+				if alertInfo.State == "inactive" {
 					app.logger.Info(fmt.Sprintf("alert %s inactive", key))
 					app.alerts.Delete(key)
-					app.notify(notifyUser, alert, true)
+					go app.notifyUser(notifyUser, alertRec, true)
 					return true
 				}
 
-				var severity = "unknown"
-				if sev, ok := alert.Labels["severity"]; ok {
-					severity = sev
+				if alertRec.NeedToNotify() {
+					go app.notifyUser(notifyUser, alertRec, false)
 				}
-
-				alertRec.Alert = alert
-
-				if !alertRec.Muted && severity == "critical" && time.Now().After(alertRec.LastNotify.Add(notifyDelay)) {
-					app.notify(notifyUser, alert, false)
-					alertRec.LastNotify = time.Now()
-				}
-				app.alerts.Store(key, alertRec)
-
 			} else {
 				app.logger.Error(fmt.Sprintf("invalid value: %v", value))
 			}
@@ -103,7 +78,7 @@ func (app *App) alertProcessor() {
 		time.Sleep(time.Second)
 	}
 }
-func fetchAlertInfo(alertUrl string) (*Alert, error) {
+func fetchAlertInfo(alertUrl string) (*alert.Alert, error) {
 	cl := http.Client{Timeout: time.Second * 3}
 
 	resp, err := cl.Get(alertUrl)
@@ -120,21 +95,34 @@ func fetchAlertInfo(alertUrl string) (*Alert, error) {
 	}
 
 	defer resp.Body.Close()
-	alert := new(Alert)
+	alert := new(alert.Alert)
 	m := json.NewDecoder(resp.Body)
 	if err := m.Decode(alert); err != nil {
-		return nil, fmt.Errorf("json decode error", "error", err)
+		return nil, fmt.Errorf("json decode error %v", err)
 	}
 
 	return alert, nil
 }
 
-func (app *App) notify(name string, alert *Alert, good bool) {
-	id, err := app.IdByName(name)
+func (app *App) notifyUser(userName string, ar *alert.AlertRec, good bool) {
+	id, err := app.IdByName(userName)
 
 	if err != nil {
-		app.logger.Warn("user not found: " + name)
+		app.logger.Warn("user not found: " + userName)
 		return
+	}
+
+	if mid, err := app.sendTgWithMode(id, getMsg(ar.Alert(), good), "HTML"); err != nil {
+		app.logger.Error("can't send to "+userName, "error", err)
+	} else {
+		ar.Notified(mid)
+	}
+}
+
+func getMsg(alert *alert.Alert, good bool) string {
+	tmpl, err := template.New("name").Parse(alertTpl)
+	if err != nil {
+		return err.Error()
 	}
 
 	var severity = "unknown"
@@ -142,29 +130,10 @@ func (app *App) notify(name string, alert *Alert, good bool) {
 		severity = sev
 	}
 
-	if severity != "critical" {
-		return
+	sb := new(strings.Builder)
+	if err := tmpl.Execute(sb, map[string]any{"good": good, "alert": alert, "severity": severity}); err != nil {
+		return err.Error()
 	}
 
-	sb := strings.Builder{}
-	if good {
-		sb.WriteString(fmt.Sprintf("%s %s is good\n", em_green_square, alert.Name))
-	} else {
-		icon := em_yellow_square
-		if severity == "critical" {
-			icon = em_red_square
-		}
-		sb.WriteString(fmt.Sprintf("%s %s [%s]\n\n", icon, alert.Name, severity))
-		sb.WriteString(fmt.Sprintf("%s\n", alert.Annotations.Summary))
-		sb.WriteString(fmt.Sprintf("%s\n", alert.Annotations.Description))
-		for k, v := range alert.Labels {
-			sb.WriteString(k)
-			sb.WriteString(": ")
-			sb.WriteString(v)
-			sb.WriteString(", ")
-		}
-	}
-	if err := app.sendWithMode(name, id, html.EscapeString(sb.String()), "HTML"); err != nil {
-		app.logger.Error("can't send to "+name, "error", err)
-	}
+	return sb.String()
 }

@@ -1,13 +1,14 @@
 package main
 
 import (
+	"botik/cmd/botik/alert"
 	"fmt"
 	"testing"
 	"time"
 )
 
 func TestAlertOk(t *testing.T) {
-	alert := &Alert{
+	al1 := &alert.Alert{
 		ID:         "id",
 		Name:       "alert name",
 		GroupID:    "grp",
@@ -22,7 +23,7 @@ func TestAlertOk(t *testing.T) {
 		ActiveAt: time.Now(),
 	}
 
-	alert2 := &Alert{
+	al2 := &alert.Alert{
 		ID:         "id",
 		Name:       "alert name",
 		GroupID:    "grp",
@@ -37,7 +38,7 @@ func TestAlertOk(t *testing.T) {
 		ActiveAt: time.Now(),
 	}
 
-	fmt.Println(getMsg(alert, true))
-	fmt.Println(getMsg(alert, false))
-	fmt.Println(getMsg(alert2, false))
+	fmt.Println(getMsg(al1, true))
+	fmt.Println(getMsg(al1, false))
+	fmt.Println(getMsg(al2, false))
 }

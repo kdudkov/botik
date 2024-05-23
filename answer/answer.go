@@ -2,7 +2,6 @@ package answer
 
 import (
 	"fmt"
-	"log/slog"
 	"sort"
 	"strings"
 	"unicode"
@@ -11,7 +10,6 @@ import (
 type Answerer interface {
 	Check(user string, msg string) *Q
 	Process(q *Q) *Answer
-	AddLogger(logger *slog.Logger)
 }
 
 type Answer struct {

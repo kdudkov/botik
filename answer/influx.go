@@ -28,8 +28,9 @@ type Influx struct {
 func NewInflux() *Influx {
 	client := &http.Client{Timeout: time.Second * 5}
 	return &Influx{
-		api:  api.NewInfluxApi("192.168.0.1:8086", client),
-		days: 10,
+		api:    api.NewInfluxApi("192.168.0.1:8086", client),
+		days:   10,
+		logger: slog.Default().With("logger", "influx"),
 	}
 }
 
@@ -47,10 +48,6 @@ type Pressure struct {
 	Time time.Time
 	Sys  uint16
 	Dia  uint16
-}
-
-func (i *Influx) AddLogger(logger *slog.Logger) {
-	i.logger = logger.With("logger", "influx")
 }
 
 func (i *Influx) Check(user string, msg string) (q *Q) {

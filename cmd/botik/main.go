@@ -100,10 +100,6 @@ func (app *App) removeWebhook() {
 }
 
 func (app *App) Run() {
-	for _, ans := range answer.Answers {
-		ans.AddLogger(app.logger)
-	}
-
 	var err error
 
 	app.bot, err = tg.NewBotAPI(viper.GetString("token"))
@@ -116,7 +112,7 @@ func (app *App) Run() {
 	go runHttpServer(app)
 
 	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		for alertUrl := range app.alertUrls {

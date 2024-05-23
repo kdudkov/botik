@@ -13,17 +13,16 @@ type Camera struct {
 }
 
 func NewCamera() *Camera {
-	return &Camera{img: "/home/motion/lastsnap.jpg"}
+	return &Camera{
+		img:    "/home/motion/lastsnap.jpg",
+		logger: slog.Default().With("logger", "camera"),
+	}
 }
 
 func init() {
 	if err := RegisterAnswer("camera", NewCamera()); err != nil {
 		panic(err.Error())
 	}
-}
-
-func (cam *Camera) AddLogger(logger *slog.Logger) {
-	cam.logger = logger.With("logger", "camera")
 }
 
 func (cam *Camera) Check(user string, msg string) (q *Q) {

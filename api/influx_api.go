@@ -1,14 +1,17 @@
 package api
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
+
+	"github.com/kdudkov/goutils/request"
 )
 
 type InfluxHttpApi interface {
@@ -34,46 +37,27 @@ type InfluxAnswer struct {
 type InfluxApi struct {
 	host   string
 	client *http.Client
+	logger *slog.Logger
 }
 
 func NewInfluxApi(host string, client *http.Client) *InfluxApi {
 	return &InfluxApi{
 		host:   host,
 		client: client,
+		logger: slog.Default(),
 	}
 }
 
 func (i *InfluxApi) Send(db, q string) error {
-	params := url.Values{}
-	params.Add("epoch", "ns")
-	params.Add("db", db)
+	r := request.New(i.client, i.logger).
+		URL(fmt.Sprintf("http://%s/write", i.host)).
+		Post().
+		Args(map[string]string{"epoch": "ns", "db": db}).
+		Body(strings.NewReader(q))
 
-	u := fmt.Sprintf("http://%s/write?%s", i.host, params.Encode())
+	_, err := r.GetBody(context.Background())
 
-	req, err := http.NewRequest("POST", u, bytes.NewBuffer([]byte(q)))
-
-	if err != nil {
-		return err
-	}
-
-	resp, err := i.client.Do(req)
-
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 && resp.StatusCode != 204 {
-		s, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		} else {
-			return fmt.Errorf("%s", s)
-		}
-	}
-
-	return nil
+	return err
 }
 
 func (i *InfluxApi) GetData(db string, q string) (ans InfluxAnswer, err error) {

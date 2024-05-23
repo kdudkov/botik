@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"botik/api"
+
+	"github.com/spf13/viper"
 )
 
 const (
@@ -31,12 +33,14 @@ func init() {
 }
 
 func NewLight() *Light {
-	return &Light{mahno: api.NewMahnoApi()}
+	return &Light{
+		mahno:  api.NewMahnoApi(viper.GetString("mahno.host")),
+		logger: slog.Default().With("logger", "light"),
+	}
 }
 
 func (l *Light) AddLogger(logger *slog.Logger) {
 	l.logger = logger.With("logger", "light")
-	l.mahno.SetLogger(logger.With("logger", "mahno_api"))
 }
 
 func (l *Light) Check(user string, msg string) (q *Q) {
@@ -129,7 +133,7 @@ func (l *Light) Process(q *Q) *Answer {
 			return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
 		}
 
-		l.logger.Info("light OFF to", target)
+		l.logger.Info("light OFF to " + target)
 		err := l.mahno.ItemCommand(target, OFF)
 
 		if err != nil {

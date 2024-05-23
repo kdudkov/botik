@@ -1,11 +1,12 @@
 module botik
 
-go 1.21
+go 1.22.2
 
 require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gofiber/fiber/v2 v2.52.4
 	github.com/kdudkov/goatak v0.4.1
+	github.com/kdudkov/goutils v0.0.0-20240523131328-e78d7fdc8f04
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/zap v1.27.0

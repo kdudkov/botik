@@ -19,12 +19,6 @@ func NewCamera() *Camera {
 	}
 }
 
-func init() {
-	if err := RegisterAnswer("camera", NewCamera()); err != nil {
-		panic(err.Error())
-	}
-}
-
 func (cam *Camera) Check(user string, msg string) (q *Q) {
 	q = &Q{Msg: msg, User: strings.ToLower(user)}
 

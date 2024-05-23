@@ -131,12 +131,20 @@ func (l *Light) Process(q *Q) *Answer {
 
 	case ALL_ON:
 		l.logger.Info("all lights on")
-		allLight(l.mahno, ON)
+		err := l.mahno.GroupCommand("lights_out", ON)
+		if err != nil {
+			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
+		}
+
 		return TextAnswer("включаю весь свет")
 
 	case ALL_OFF:
 		l.logger.Info("all lights off")
-		allLight(l.mahno, OFF)
+		err := l.mahno.GroupCommand("lights", ON)
+		if err != nil {
+			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
+		}
+
 		return TextAnswer("выключаю весь свет")
 
 	case DAY:
@@ -150,7 +158,6 @@ func (l *Light) Process(q *Q) *Answer {
 
 	case NIGHT:
 		l.logger.Info("home mode night")
-		allLight(l.mahno, OFF)
 		err := l.mahno.SetItemState("home_mode", "night")
 
 		if err != nil {
@@ -215,10 +222,4 @@ func getItemName(s string) string {
 	}
 
 	return ""
-}
-
-func allLight(mahno api.MahnoApi, cmd string) {
-	for _, x := range []string{"light_room", "light_corridor", "s20_1", "s20_2"} {
-		mahno.ItemCommand(x, cmd)
-	}
 }

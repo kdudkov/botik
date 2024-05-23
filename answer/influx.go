@@ -25,18 +25,12 @@ type Influx struct {
 	days   uint16
 }
 
-func NewInflux() *Influx {
+func NewInflux(addr string) *Influx {
 	client := &http.Client{Timeout: time.Second * 5}
 	return &Influx{
-		api:    api.NewInfluxApi("192.168.0.1:8086", client),
+		api:    api.NewInfluxApi(addr, client),
 		days:   10,
 		logger: slog.Default().With("logger", "influx"),
-	}
-}
-
-func init() {
-	if err := RegisterAnswer("influx", NewInflux()); err != nil {
-		panic(err.Error())
 	}
 }
 

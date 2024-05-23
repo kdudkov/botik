@@ -30,6 +30,7 @@ type Item struct {
 
 type MahnoApi interface {
 	ItemCommand(item string, cmd string) error
+	GroupCommand(item string, cmd string) error
 	SetItemState(item string, val string) error
 	AllItems() ([]*Item, error)
 }
@@ -66,6 +67,18 @@ func (m *MahnoHttpApi) doReq(method string, path string, data string) ([]byte, e
 
 func (m *MahnoHttpApi) ItemCommand(item string, cmd string) error {
 	body, err := m.doReq("POST", "/items/"+item, cmd)
+
+	if err != nil {
+		m.logger.Error("error talking to mahno", "error", err)
+		return err
+	}
+
+	m.logger.Info(fmt.Sprintf("body: " + string(body)))
+	return nil
+}
+
+func (m *MahnoHttpApi) GroupCommand(name string, cmd string) error {
+	body, err := m.doReq("POST", "/groups/"+name, cmd)
 
 	if err != nil {
 		m.logger.Error("error talking to mahno", "error", err)

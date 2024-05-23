@@ -37,7 +37,7 @@ func (l *Light) Check(user string, msg string) (q *Q) {
 
 	words := q.Words()
 
-	if strings.HasPrefix(m, "light") {
+	if HasPrefix(m, "light") {
 		if len(words) == 1 {
 			q.Matched = true
 			q.Prefix = ""
@@ -46,17 +46,17 @@ func (l *Light) Check(user string, msg string) (q *Q) {
 		}
 	}
 
-	if s := HasPrefix(m, "включи", "включить"); s != "" {
+	if s := LongestPrefix(m, "включи", "включить"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = ON
-		if IndexOf(words, "весь", "везде") > -1 {
+		if IndexOf(words, "весь", "везде", "улице", "уличный") > -1 {
 			q.Cmd = ALL_ON
 		}
 		return
 	}
 
-	if s := HasPrefix(m, "выключи", "выключить"); s != "" {
+	if s := LongestPrefix(m, "выключи", "выключить"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = OFF
@@ -66,28 +66,28 @@ func (l *Light) Check(user string, msg string) (q *Q) {
 		return
 	}
 
-	if s := HasPrefix(m, "спать", "ночной режим", "ночь"); s != "" {
+	if s := LongestPrefix(m, "спать", "ночной режим", "ночь"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = NIGHT
 		return
 	}
 
-	if s := HasPrefix(m, "день"); s != "" {
+	if s := LongestPrefix(m, "день"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = DAY
 		return
 	}
 
-	if s := HasPrefix(m, "жди", "все ушли", "один дома"); s != "" {
+	if s := LongestPrefix(m, "жди", "все ушли", "один дома"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = NOBODY_HOME
 		return
 	}
 
-	if s := HasPrefix(m, "свет", "статус"); s != "" {
+	if s := LongestPrefix(m, "свет", "статус"); s != "" {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = STATUS

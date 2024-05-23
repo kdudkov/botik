@@ -112,17 +112,24 @@ func (app *App) notifyUser(userName string, ar *alert.AlertRec, good bool) {
 		return
 	}
 
-	if mid, err := app.sendTgWithMode(id, getMsg(ar.Alert(), good), "HTML"); err != nil {
+	text, err := getMsg(ar.Alert(), good)
+
+	if err != nil {
+		app.logger.Error("error formatting message to "+userName, "error", err)
+		return
+	}
+
+	if mid, err := app.sendTgWithMode(id, text, "HTML"); err != nil {
 		app.logger.Error("can't send to "+userName, "error", err)
 	} else {
 		ar.Notified(mid)
 	}
 }
 
-func getMsg(alert *alert.Alert, good bool) string {
+func getMsg(alert *alert.Alert, good bool) (string, error) {
 	tmpl, err := template.New("name").Parse(alertTpl)
 	if err != nil {
-		return err.Error()
+		return "", err
 	}
 
 	var severity = "unknown"
@@ -132,8 +139,8 @@ func getMsg(alert *alert.Alert, good bool) string {
 
 	sb := new(strings.Builder)
 	if err := tmpl.Execute(sb, map[string]any{"good": good, "alert": alert, "severity": severity}); err != nil {
-		return err.Error()
+		return "", err
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }

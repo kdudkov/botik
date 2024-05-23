@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type MockInflux struct {
@@ -36,13 +38,9 @@ func TestInfluxSendWeight(t *testing.T) {
 	q = l.Check("user", "Вес 90.1")
 	words = q.Words()
 
-	if !(q.Matched && q.Cmd == WEIGHT) {
-		t.Fail()
-	}
-
-	if words[1] != "90.1" {
-		t.Fail()
-	}
+	assert.True(t, q.Matched)
+	assert.Equal(t, WEIGHT, q.Cmd)
+	assert.Equal(t, "90.1", words[1])
 
 	l.Process(q)
 	fmt.Println(mock.result)
@@ -58,13 +56,9 @@ func TestInfluxSendWeight(t *testing.T) {
 	q = l.Check("user", "Вес 90,2")
 	words = q.Words()
 
-	if !(q.Matched && q.Cmd == WEIGHT) {
-		t.Fail()
-	}
-
-	if words[1] != "90,2" {
-		t.Fail()
-	}
+	assert.True(t, q.Matched)
+	assert.Equal(t, WEIGHT, q.Cmd)
+	assert.Equal(t, "90,2", words[1])
 
 	l.Process(q)
 	fmt.Println(mock.result)
@@ -79,9 +73,8 @@ func TestInfluxSendBPt(t *testing.T) {
 
 	q = l.Check("user", "Давление 120 70")
 
-	if !(q.Matched && q.Cmd == BP) {
-		t.Fail()
-	}
+	assert.True(t, q.Matched)
+	assert.Equal(t, BP, q.Cmd)
 
 	l.Process(q)
 	fmt.Println(mock.result)
@@ -96,9 +89,8 @@ func TestInfluxSendBPtNote(t *testing.T) {
 
 	q = l.Check("user", "Давление 120 70 и всё круто")
 
-	if !(q.Matched && q.Cmd == BP) {
-		t.Fail()
-	}
+	assert.True(t, q.Matched)
+	assert.Equal(t, BP, q.Cmd)
 
 	l.Process(q)
 	fmt.Println(mock.result)

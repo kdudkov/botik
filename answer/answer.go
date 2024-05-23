@@ -84,7 +84,7 @@ func IndexOf(words []string, element ...string) int {
 	return -1
 }
 
-func HasPrefix(s string, prefixes ...string) string {
+func LongestPrefix(s string, prefixes ...string) string {
 	sort.Slice(prefixes, func(i, j int) bool {
 		return len(prefixes[i]) > len(prefixes[j])
 	})
@@ -96,4 +96,14 @@ func HasPrefix(s string, prefixes ...string) string {
 	}
 
 	return ""
+}
+
+func HasPrefix(s string, prefixes ...string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(s, prefix) {
+			return true
+		}
+	}
+
+	return false
 }

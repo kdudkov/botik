@@ -40,13 +40,20 @@ type App struct {
 	alertUrls chan string
 }
 
-func NewApp() (app *App) {
-	app = &App{
+func NewApp() *App {
+	app := &App{
 		logger:    slog.Default(),
 		alertUrls: make(chan string, 20),
 		alerts:    sync.Map{},
 	}
-	return
+
+	if h := viper.GetString("mahno.host"); h != "" {
+		if err := answer.RegisterAnswer("light", answer.NewLight(h)); err != nil {
+			panic(err.Error())
+		}
+	}
+
+	return app
 }
 
 func (app *App) GetUpdatesChannel() (tg.UpdatesChannel, error) {

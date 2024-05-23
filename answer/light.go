@@ -6,8 +6,6 @@ import (
 	"strings"
 
 	"botik/api"
-
-	"github.com/spf13/viper"
 )
 
 const (
@@ -26,21 +24,11 @@ type Light struct {
 	logger *slog.Logger
 }
 
-func init() {
-	if err := RegisterAnswer("light", NewLight()); err != nil {
-		panic(err.Error())
-	}
-}
-
-func NewLight() *Light {
+func NewLight(host string) *Light {
 	return &Light{
-		mahno:  api.NewMahnoApi(viper.GetString("mahno.host")),
+		mahno:  api.NewMahnoApi(host),
 		logger: slog.Default().With("logger", "light"),
 	}
-}
-
-func (l *Light) AddLogger(logger *slog.Logger) {
-	l.logger = logger.With("logger", "light")
 }
 
 func (l *Light) Check(user string, msg string) (q *Q) {
@@ -185,13 +173,15 @@ func (l *Light) Process(q *Q) *Answer {
 			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
 		}
 
-		ans := "свет:\n"
+		sb := new(strings.Builder)
+		sb.WriteString("свет:\n")
 		for _, i := range res {
-			if IndexOf(i.Tags, "light") > -1 || i.Name == "home_mode" {
-				ans = fmt.Sprintf("%s\n%s %s", ans, i.Name, i.Formatted)
+			if IndexOf(i.Groups, "light") > -1 || i.Name == "home_mode" {
+				fmt.Fprintf(sb, "\n%s %s %s %s", i.Name, i.HumanName, i.Room, i.FormattedValue)
 			}
 		}
-		return TextAnswer(ans)
+
+		return TextAnswer(sb.String())
 
 	default:
 		return TextAnswer(fmt.Sprintf("не понимаю, что значит %s", q.Msg))

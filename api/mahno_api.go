@@ -12,14 +12,20 @@ import (
 )
 
 type Item struct {
-	ClassName string      `json:"class"`
-	Name      string      `json:"name"`
-	HumanName string      `json:"human_name,omitempty"`
-	Value     interface{} `json:"value"`
-	Formatted string      `json:"formatted_value,omitempty"`
-	Checked   time.Time   `json:"checked"`
-	Changed   time.Time   `json:"changed"`
-	Tags      []string    `json:"tags"`
+	Name           string         `json:"name"`
+	Type_          string         `json:"type"`
+	HumanName      string         `json:"human_name"`
+	Room           string         `json:"room"`
+	Changed        time.Time      `json:"changed"`
+	Checked        time.Time      `json:"checked"`
+	Value          string         `json:"value"`
+	RawValue       any            `json:"raw_value"`
+	FormattedValue string         `json:"formatted_value"`
+	Good           bool           `json:"good"`
+	UI             bool           `json:"ui"`
+	Tags           []string       `json:"tags,omitempty"`
+	Groups         []string       `json:"groups,omitempty"`
+	Meta           map[string]any `json:"meta,omitempty"`
 }
 
 type MahnoApi interface {

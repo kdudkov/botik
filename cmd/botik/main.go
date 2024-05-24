@@ -159,6 +159,7 @@ func (app *App) alertNotifier(text string) {
 		}
 
 		go func(logger *slog.Logger) {
+			logger.Info("sending notification")
 
 			if _, err := app.sendTgWithMode(id, text, "HTML"); err != nil {
 				logger.Error("error send message", "error", err)

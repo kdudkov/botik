@@ -54,7 +54,7 @@ func (m *MahnoHttpApi) SetLogger(logger *slog.Logger) {
 }
 
 func (m *MahnoHttpApi) doReq(method string, path string, data string) ([]byte, error) {
-	r := request.New(m.client, m.logger).URL("http://" + m.host + path).Method(method)
+	r := request.New(m.client, m.logger).URL(m.host + path).Method(method)
 
 	if data != "" {
 		r.Body(strings.NewReader(data))
@@ -102,7 +102,7 @@ func (m *MahnoHttpApi) SetItemState(item string, val string) error {
 }
 
 func (m *MahnoHttpApi) AllItems() ([]*Item, error) {
-	r := request.New(m.client, m.logger).URL("http://" + m.host + "/items")
+	r := request.New(m.client, m.logger).URL(m.host + "/items")
 
 	r.Headers(map[string]string{"Content-Type": "application/json"})
 

@@ -90,23 +90,26 @@ func SendHandlerFunc(app *App) fiber.Handler {
 
 func GrafanaHandlerFunc(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if id, err := app.IdByName(notifyUser); err == nil {
-			r := new(GrafanaReq)
-			if err := c.BodyParser(r); err != nil {
-				return err
-			}
+		r := new(GrafanaReq)
+		if err := c.BodyParser(r); err != nil {
+			return err
+		}
 
-			text := MakeGrafanaMsg(r)
+		text := MakeGrafanaMsg(r)
+
+		for _, user := range app.notifyUsers {
+			id, err := app.IdByName(user)
+
+			if err != nil {
+				app.logger.Error("invalid user " + user)
+				continue
+			}
 
 			if _, err := app.sendTg(id, text); err != nil {
 				return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
 			}
-
-			return c.SendString("ok")
 		}
-
-		app.logger.Warn("user not found: " + notifyUser)
-		return c.SendStatus(fiber.StatusNotFound)
+		return c.SendString("ok")
 	}
 }
 
@@ -136,10 +139,8 @@ func GetAlertsHandlerFunc(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		list := make([]*alert.AlertRecDTO, 0)
 
-		app.alerts.Range(func(_, value interface{}) bool {
-			if ar, ok := value.(*alert.AlertRec); ok {
-				list = append(list, ar.DTO())
-			}
+		app.am.Range(func(ar *alert.AlertRec) bool {
+			list = append(list, ar.DTO())
 			return true
 		})
 
@@ -151,11 +152,9 @@ func GetMuteAlertHandlerFunc(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		id := c.Params("id")
 
-		app.alerts.Range(func(_, value interface{}) bool {
-			if ar, ok := value.(*alert.AlertRec); ok {
-				if ar.Alert().ID == id {
-					ar.Mute()
-				}
+		app.am.Range(func(ar *alert.AlertRec) bool {
+			if ar.Alert().ID == id {
+				ar.Mute()
 			}
 			return true
 		})

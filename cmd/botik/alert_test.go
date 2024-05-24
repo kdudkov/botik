@@ -25,7 +25,7 @@ func TestAlertOk(t *testing.T) {
 		ActiveAt: time.Now(),
 	}
 
-	s, err := getMsg(al1, true)
+	s, err := alert.getMsg(al1, true)
 
 	assert.NoError(t, err)
 	fmt.Println(s)
@@ -62,12 +62,12 @@ func TestAlertBad(t *testing.T) {
 		ActiveAt: time.Now(),
 	}
 
-	s, err := getMsg(al1, false)
+	s, err := alert.getMsg(al1, false)
 
 	assert.NoError(t, err)
 	fmt.Println(s)
 
-	s, err = getMsg(al2, false)
+	s, err = alert.getMsg(al2, false)
 
 	assert.NoError(t, err)
 	fmt.Println(s)

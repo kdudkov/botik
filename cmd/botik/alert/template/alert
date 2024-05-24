@@ -8,3 +8,4 @@
 {{ end -}}
 {{ range $k, $v := .alert.Labels }}<b>{{ $k }}</b>:{{ $v}}, {{end}}
 {{end}}
+id:{{ .alert.ID }}

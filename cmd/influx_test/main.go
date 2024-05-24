@@ -1,14 +1,13 @@
 package main
 
 import (
+	"botik/cmd/botik/answer"
+	"botik/internal/api"
+	"botik/internal/util"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
-
-	"botik/answer"
-	"botik/api"
-	"botik/util"
 )
 
 func main() {

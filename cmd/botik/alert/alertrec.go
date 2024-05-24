@@ -22,18 +22,29 @@ type Alert struct {
 	ActiveAt time.Time `json:"activeAt"`
 }
 
+func (a *Alert) Severity() string {
+	for k, v := range a.Labels {
+		if k == "severity" {
+			return v
+		}
+	}
+
+	return ""
+}
+
 type AlertRec struct {
+	created    time.Time
 	alert      *Alert
 	url        string
 	lastNotify time.Time
 	muted      bool
-	msgId      int
 	mx         sync.RWMutex
 }
 
 type AlertRecDTO struct {
 	Alert      *Alert    `json:"alert,omitempty"`
 	Url        string    `json:"url,omitempty"`
+	Created    time.Time `json:"created"`
 	LastNotify time.Time `json:"last_notify"`
 	Muted      bool      `json:"muted,omitempty"`
 }
@@ -42,9 +53,9 @@ func NewAlertRec(alert *Alert, url string) *AlertRec {
 	return &AlertRec{
 		alert:      alert,
 		url:        url,
+		created:    time.Now(),
 		lastNotify: time.Time{},
 		muted:      false,
-		msgId:      0,
 		mx:         sync.RWMutex{},
 	}
 }
@@ -65,11 +76,10 @@ func (a *AlertRec) SetAlert(alert *Alert) *AlertRec {
 	return a
 }
 
-func (a *AlertRec) Notified(m int) *AlertRec {
+func (a *AlertRec) Notified() *AlertRec {
 	a.mx.Lock()
 	defer a.mx.Unlock()
 
-	a.msgId = m
 	a.lastNotify = time.Now()
 
 	return a
@@ -107,6 +117,7 @@ func (a *AlertRec) DTO() *AlertRecDTO {
 		Url:        a.url,
 		LastNotify: a.lastNotify,
 		Muted:      a.muted,
+		Created:    a.created,
 	}
 }
 
@@ -117,13 +128,6 @@ func (a *AlertRec) IsMuted() bool {
 	return a.muted
 }
 
-func (a *AlertRec) MsgId() int {
-	a.mx.RLock()
-	defer a.mx.RUnlock()
-
-	return a.msgId
-}
-
 func (a *AlertRec) NeedToNotify() bool {
 	a.mx.RLock()
 	defer a.mx.RUnlock()
@@ -132,16 +136,7 @@ func (a *AlertRec) NeedToNotify() bool {
 		return false
 	}
 
-	var severity string
-
-	for k, v := range a.alert.Labels {
-		if k == "severity" {
-			severity = v
-			break
-		}
-	}
-
-	if severity != "critical" {
+	if a.alert.Severity() != "critical" {
 		return false
 	}
 

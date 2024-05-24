@@ -2,6 +2,7 @@ package main
 
 import (
 	"botik/cmd/botik/alert"
+	"botik/cmd/botik/answer"
 	"encoding/xml"
 	"fmt"
 	"html"
@@ -13,17 +14,12 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/spf13/viper"
-	"go.uber.org/zap"
-
-	"botik/answer"
-
 	"github.com/kdudkov/goatak/cot"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -32,20 +28,22 @@ var (
 )
 
 type App struct {
-	bot       *tg.BotAPI
-	users     map[string]string
-	groups    map[string]string
-	logger    *slog.Logger
-	alerts    sync.Map
-	alertUrls chan string
+	bot         *tg.BotAPI
+	users       map[string]string
+	groups      map[string]string
+	notifyUsers []string
+	logger      *slog.Logger
+	am          *alert.AlertManager
+	alertUrls   chan string
 }
 
 func NewApp() *App {
 	app := &App{
 		logger:    slog.Default(),
 		alertUrls: make(chan string, 20),
-		alerts:    sync.Map{},
 	}
+
+	app.am = alert.NewManager(slog.Default().With("logger", "alerts"), app.alertNotifier)
 
 	if h := viper.GetString("mahno.host"); h != "" {
 		if err := answer.RegisterAnswer("light", answer.NewLight(h)); err != nil {
@@ -107,8 +105,11 @@ func (app *App) removeWebhook() {
 }
 
 func (app *App) Run() {
-	var err error
+	for k := range app.users {
+		app.logger.Info("user " + k)
+	}
 
+	var err error
 	app.bot, err = tg.NewBotAPI(viper.GetString("token"))
 
 	if err != nil {
@@ -123,11 +124,11 @@ func (app *App) Run() {
 
 	go func() {
 		for alertUrl := range app.alertUrls {
-			go app.processNewUrl(alertUrl)
+			go app.am.AddURL(alertUrl)
 		}
 	}()
 
-	go app.alertProcessor()
+	app.am.Start()
 
 	updates, err := app.GetUpdatesChannel()
 
@@ -145,6 +146,24 @@ func (app *App) Run() {
 			app.quit()
 			return
 		}
+	}
+}
+
+func (app *App) alertNotifier(text string) {
+	for _, user := range app.notifyUsers {
+		id, err := app.IdByName(user)
+
+		if err != nil {
+			app.logger.Error("invalid user "+user, "error", err)
+			continue
+		}
+
+		go func(logger *slog.Logger) {
+
+			if _, err := app.sendTgWithMode(id, text, "HTML"); err != nil {
+				logger.Error("error send message", "error", err)
+			}
+		}(app.logger.With("user", user, "id", id))
 	}
 }
 
@@ -192,18 +211,31 @@ func (app *App) Process(update tg.Update) {
 		}
 	}
 
+	// mute
 	if rm := message.ReplyToMessage; rm != nil && strings.ToLower(message.Text) == "mute" {
-		app.alerts.Range(func(_, v any) bool {
-			if ar, ok := v.(*alert.AlertRec); ok {
-				if ar.MsgId() == rm.MessageID {
-					ar.Mute()
-					go app.sendTgWithMode(
-						message.From.ID,
-						html.EscapeString(html.EscapeString(fmt.Sprintf("alert %s is muted", ar.Alert().Name))),
-						"HTML",
-					)
-					return false
-				}
+		var id string
+		for _, s := range strings.Split(rm.Text, "\n") {
+			if strings.HasPrefix(s, "id:") {
+				id = s[3:]
+				break
+			}
+		}
+
+		if id == "" {
+			return
+		}
+
+		app.logger.Info("mute id " + id)
+
+		app.am.Range(func(ar *alert.AlertRec) bool {
+			if ar.Alert().ID == id {
+				ar.Mute()
+				go app.sendTgWithMode(
+					message.From.ID,
+					html.EscapeString(html.EscapeString(fmt.Sprintf("alert %s is muted", ar.Alert().Name))),
+					"HTML",
+				)
+				return false
 			}
 
 			return true
@@ -239,9 +271,9 @@ func (app *App) Process(update tg.Update) {
 
 func (app *App) getUser(id int64) string {
 	sid := strconv.Itoa(int(id))
-	for u, id := range app.users {
-		if id == sid {
-			return u
+	for name, uid := range app.users {
+		if uid == sid {
+			return name
 		}
 	}
 	return ""
@@ -270,7 +302,7 @@ func getLocation(update tg.Update) *tg.Location {
 }
 
 func (app *App) IdByName(name string) (int64, error) {
-	if ids, ok := app.users[name]; ok {
+	if ids, ok := app.users[strings.ToLower(name)]; ok {
 		if id, err := strconv.ParseInt(ids, 10, 64); err == nil {
 			return id, nil
 		} else {
@@ -279,7 +311,7 @@ func (app *App) IdByName(name string) (int64, error) {
 		}
 	}
 
-	if ids, ok := app.groups[name]; ok {
+	if ids, ok := app.groups[strings.ToLower(name)]; ok {
 		if id, err := strconv.ParseInt(ids, 10, 64); err == nil {
 			return id, nil
 		} else {
@@ -323,16 +355,6 @@ func main() {
 		panic(fmt.Errorf("Fatal error config file: %s \n", err))
 	}
 
-	config := zap.NewProductionConfig()
-	config.Encoding = "console"
-
-	logger, err := config.Build()
-	defer logger.Sync()
-
-	if err != nil {
-		panic(err.Error())
-	}
-
 	h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
 
 	slog.SetDefault(slog.New(h))
@@ -340,6 +362,7 @@ func main() {
 	app := NewApp()
 	app.users = viper.GetStringMapString("users")
 	app.groups = viper.GetStringMapString("groups")
+	app.notifyUsers = viper.GetStringSlice("notify")
 
 	app.Run()
 }

@@ -1,7 +1,7 @@
 package answer
 
 import (
-	"botik/api"
+	"botik/internal/api"
 	"fmt"
 	"strings"
 	"testing"

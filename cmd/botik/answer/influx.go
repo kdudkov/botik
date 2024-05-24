@@ -1,6 +1,8 @@
 package answer
 
 import (
+	"botik/internal/api"
+	"botik/internal/util"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -8,9 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"botik/api"
-	"botik/util"
 )
 
 const (

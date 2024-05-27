@@ -1,6 +1,7 @@
 package alert
 
 import (
+	"embed"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -12,12 +13,8 @@ import (
 	"time"
 )
 
-const (
-	notifyUser = "kott"
-)
-
-//go:embed template/alert
-var alertTpl string
+//go:embed template/*
+var alerts embed.FS
 
 type AlertManager struct {
 	logger   *slog.Logger
@@ -28,7 +25,7 @@ type AlertManager struct {
 }
 
 func NewManager(logger *slog.Logger, notifier func(msg string)) *AlertManager {
-	tmpl, err := template.New("alert").Parse(alertTpl)
+	tmpl, err := template.New("").ParseFS(alerts, "template/*")
 
 	if err != nil {
 		panic(err)
@@ -63,7 +60,6 @@ func (a *AlertManager) AddURL(alertUrl string) {
 	if alertInfo != nil && alertInfo.State != "inactive" {
 		ar := NewAlertRec(alertInfo, alertUrl)
 		a.alerts.Store(alertUrl, ar)
-		//a.notifier(a.getMsg(ar.Alert(), false))
 	}
 }
 
@@ -91,7 +87,13 @@ func (a *AlertManager) alertProcessor() {
 				if alertInfo == nil {
 					a.logger.Info(fmt.Sprintf("remove %s alert (404)", key))
 					a.alerts.Delete(key)
-					a.notifier(a.getMsg(alertRec.Alert(), true))
+					if msg, err := a.getMsg(alertRec.Alert(), "alert_good"); err == nil {
+						alertRec.Notified()
+						a.notifier(msg)
+					} else {
+						a.logger.Error("error in template", "error", err)
+					}
+
 					return true
 				}
 
@@ -100,13 +102,26 @@ func (a *AlertManager) alertProcessor() {
 				if alertInfo.State == "inactive" {
 					a.logger.Info(fmt.Sprintf("alert %s inactive", key))
 					a.alerts.Delete(key)
-					a.notifier(a.getMsg(alertRec.Alert(), true))
+					if msg, err := a.getMsg(alertRec.Alert(), "inactive"); err == nil {
+						alertRec.Notified()
+						a.notifier(msg)
+					} else {
+						a.logger.Error("error in template", "error", err)
+					}
 					return true
 				}
 
 				if alertRec.NeedToNotify() {
-					a.notifier(a.getMsg(alertRec.Alert(), false))
-					alertRec.Notified()
+					tpl := "reminder"
+					if alertRec.IsNew() {
+						tpl = "alert_bad"
+					}
+					if msg, err := a.getMsg(alertRec.Alert(), tpl); err == nil {
+						alertRec.Notified()
+						a.notifier(msg)
+					} else {
+						a.logger.Error("error in template", "error", err)
+					}
 				}
 			} else {
 				a.logger.Error(fmt.Sprintf("invalid value: %v", value))
@@ -142,12 +157,13 @@ func (a *AlertManager) fetchAlertInfo(alertUrl string) (*Alert, error) {
 	return al, nil
 }
 
-func (a *AlertManager) getMsg(alert *Alert, good bool) string {
+func (a *AlertManager) getMsg(alert *Alert, tpl_name string) (string, error) {
 	sb := new(strings.Builder)
-	if err := a.tpl.Execute(sb, map[string]any{"good": good, "alert": alert, "severity": alert.Severity()}); err != nil {
+
+	if err := a.tpl.ExecuteTemplate(sb, tpl_name, map[string]any{"alert": alert, "severity": alert.Severity()}); err != nil {
 		a.logger.Error("error in template", "error", err)
-		return ""
+		return "", err
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }

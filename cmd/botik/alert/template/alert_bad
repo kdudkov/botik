@@ -1,0 +1,10 @@
+{{if eq .severity "critical"}}&#x1F7E5;{{else}}&#x1F7E7;{{end}} {{ .alert.Name}} [{{.severity}}]
+
+{{ if .alert.Annotations.Summary }}{{ .alert.Annotations.Summary }}
+
+{{ end -}}
+{{ if .alert.Annotations.Description }}Description: {{ .alert.Annotations.Description }}
+
+{{ end -}}
+{{ range $k, $v := .alert.Labels }}<b>{{ $k }}</b>:{{ $v}}, {{end}}
+id:{{ .alert.ID }}

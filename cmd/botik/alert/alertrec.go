@@ -38,6 +38,7 @@ type AlertRec struct {
 	url        string
 	lastNotify time.Time
 	muted      bool
+	new        bool
 	mx         sync.RWMutex
 }
 
@@ -56,6 +57,7 @@ func NewAlertRec(alert *Alert, url string) *AlertRec {
 		created:    time.Now(),
 		lastNotify: time.Time{},
 		muted:      false,
+		new:        true,
 		mx:         sync.RWMutex{},
 	}
 }
@@ -81,6 +83,7 @@ func (a *AlertRec) Notified() *AlertRec {
 	defer a.mx.Unlock()
 
 	a.lastNotify = time.Now()
+	a.new = false
 
 	return a
 }
@@ -128,6 +131,13 @@ func (a *AlertRec) IsMuted() bool {
 	return a.muted
 }
 
+func (a *AlertRec) IsNew() bool {
+	a.mx.RLock()
+	defer a.mx.RUnlock()
+
+	return a.new
+}
+
 func (a *AlertRec) NeedToNotify() bool {
 	a.mx.RLock()
 	defer a.mx.RUnlock()
@@ -136,9 +146,13 @@ func (a *AlertRec) NeedToNotify() bool {
 		return false
 	}
 
-	if a.alert.Severity() != "critical" {
-		return false
+	if a.new {
+		return true
 	}
 
-	return time.Now().After(a.lastNotify.Add(notifyDelay))
+	if a.alert.Severity() == "critical" {
+		return time.Now().After(a.lastNotify.Add(notifyDelay))
+	}
+
+	return false
 }

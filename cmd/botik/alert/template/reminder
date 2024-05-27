@@ -1,4 +1,4 @@
-{{if .good}}&#x1F7E9; {{ .alert.Name}} is good{{else}}&#x1F7E5; {{ .alert.Name}} [{{.severity}}]
+{{if eq .severity "critical"}}&#x1F7E5;{{else}}&#x1F7E7;{{end}} {{ .alert.Name}} [{{.severity}}] (reminder)
 
 {{ if .alert.Annotations.Summary }}{{ .alert.Annotations.Summary }}
 
@@ -7,5 +7,4 @@
 
 {{ end -}}
 {{ range $k, $v := .alert.Labels }}<b>{{ $k }}</b>:{{ $v}}, {{end}}
-{{end}}
 id:{{ .alert.ID }}

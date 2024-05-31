@@ -154,7 +154,7 @@ func (a *AlertRec) NeedToNotify() bool {
 	a.mx.RLock()
 	defer a.mx.RUnlock()
 
-	if a.muted || a.alert.State == "inactive" {
+	if a.muted || a.alert.State != "firing" {
 		return false
 	}
 

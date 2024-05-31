@@ -155,6 +155,10 @@ func (a *AlertManager) update(rec *AlertRec, alert *Alert) {
 }
 
 func (a *AlertManager) notify(rec *AlertRec, tpl string) {
+	if rec.IsMuted() {
+		return
+	}
+
 	if msg, err := a.getMsg(rec.Alert(), tpl); err == nil {
 		rec.Notified()
 		a.notifier(msg)

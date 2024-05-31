@@ -1,1 +1,1 @@
-&#x1F7E9; {{ .alert.Name}} is good
+&#x1F7E9; {{ .alert.Name}} {{- if .alert.Annotations.Summary }} {{ .alert.Annotations.Summary }}{{end }} is good

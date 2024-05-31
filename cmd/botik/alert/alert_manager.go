@@ -87,40 +87,21 @@ func (a *AlertManager) alertProcessor() {
 				if alertInfo == nil {
 					a.logger.Info(fmt.Sprintf("remove %s alert (404)", key))
 					a.alerts.Delete(key)
-					if msg, err := a.getMsg(alertRec.Alert(), "alert_good"); err == nil {
-						alertRec.Notified()
-						a.notifier(msg)
-					} else {
-						a.logger.Error("error in template", "error", err)
+
+					if alertRec.State() != "inactive" {
+						a.notify(alertRec, "alert_good")
 					}
 
 					return true
 				}
 
-				alertRec.SetAlert(alertInfo)
-
-				if alertInfo.State == "inactive" {
-					a.logger.Info(fmt.Sprintf("alert %s inactive", key))
-					a.alerts.Delete(key)
-					if msg, err := a.getMsg(alertRec.Alert(), "inactive"); err == nil {
-						alertRec.Notified()
-						a.notifier(msg)
-					} else {
-						a.logger.Error("error in template", "error", err)
-					}
-					return true
-				}
+				a.update(alertRec, alertInfo)
 
 				if alertRec.NeedToNotify() {
-					tpl := "reminder"
 					if alertRec.IsNew() {
-						tpl = "alert_bad"
-					}
-					if msg, err := a.getMsg(alertRec.Alert(), tpl); err == nil {
-						alertRec.Notified()
-						a.notifier(msg)
+						a.notify(alertRec, "alert_bad")
 					} else {
-						a.logger.Error("error in template", "error", err)
+						a.notify(alertRec, "reminder")
 					}
 				}
 			} else {
@@ -155,6 +136,31 @@ func (a *AlertManager) fetchAlertInfo(alertUrl string) (*Alert, error) {
 	}
 
 	return al, nil
+}
+
+func (a *AlertManager) update(rec *AlertRec, alert *Alert) {
+	old := rec.SetAlert(alert)
+
+	if old == nil || alert == nil {
+		return
+	}
+
+	if old.State != alert.State {
+		a.logger.Info(fmt.Sprintf("alert %s %s %s -> %s", old.ID, old.Name, old.State, alert.State))
+
+		if alert.State == "inactive" {
+			a.notify(rec, "inactive")
+		}
+	}
+}
+
+func (a *AlertManager) notify(rec *AlertRec, tpl string) {
+	if msg, err := a.getMsg(rec.Alert(), tpl); err == nil {
+		rec.Notified()
+		a.notifier(msg)
+	} else {
+		a.logger.Error("error in template", "error", err)
+	}
 }
 
 func (a *AlertManager) getMsg(alert *Alert, tpl_name string) (string, error) {

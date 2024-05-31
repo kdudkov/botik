@@ -69,13 +69,25 @@ func (a *AlertRec) Alert() *Alert {
 	return a.alert
 }
 
-func (a *AlertRec) SetAlert(alert *Alert) *AlertRec {
+func (a *AlertRec) State() string {
+	a.mx.RLock()
+	defer a.mx.RUnlock()
+
+	if a.alert == nil {
+		return ""
+	}
+
+	return a.alert.State
+}
+
+func (a *AlertRec) SetAlert(alert *Alert) *Alert {
 	a.mx.Lock()
 	defer a.mx.Unlock()
 
+	old := a.alert
 	a.alert = alert
 
-	return a
+	return old
 }
 
 func (a *AlertRec) Notified() *AlertRec {
@@ -142,7 +154,7 @@ func (a *AlertRec) NeedToNotify() bool {
 	a.mx.RLock()
 	defer a.mx.RUnlock()
 
-	if a.muted {
+	if a.muted || a.alert.State == "inactive" {
 		return false
 	}
 

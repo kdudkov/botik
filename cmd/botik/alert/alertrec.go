@@ -22,6 +22,14 @@ type Alert struct {
 	ActiveAt time.Time `json:"activeAt"`
 }
 
+func (a *Alert) Title() string {
+	if a.Annotations.Summary != "" {
+		return a.Annotations.Summary
+	}
+
+	return a.Name
+}
+
 func (a *Alert) Severity() string {
 	for k, v := range a.Labels {
 		if k == "severity" {

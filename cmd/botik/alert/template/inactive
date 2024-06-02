@@ -1,1 +1,1 @@
-&#x1F7E9; {{ .alert.Name}} {{- if .alert.Annotations.Summary }} {{ .alert.Annotations.Summary }}{{end }} became inactive
+&#x1F7E9; {{ .alert.Title}} became inactive

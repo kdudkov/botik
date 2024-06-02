@@ -170,7 +170,7 @@ func (a *AlertManager) notify(rec *AlertRec, tpl string) {
 func (a *AlertManager) getMsg(alert *Alert, tpl_name string) (string, error) {
 	sb := new(strings.Builder)
 
-	if err := a.tpl.ExecuteTemplate(sb, tpl_name, map[string]any{"alert": alert, "severity": alert.Severity()}); err != nil {
+	if err := a.tpl.ExecuteTemplate(sb, tpl_name, map[string]any{"alert": alert}); err != nil {
 		a.logger.Error("error in template", "error", err)
 		return "", err
 	}

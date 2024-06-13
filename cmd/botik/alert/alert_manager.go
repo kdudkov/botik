@@ -147,10 +147,6 @@ func (a *AlertManager) update(rec *AlertRec, alert *Alert) {
 
 	if old.State != alert.State {
 		a.logger.Info(fmt.Sprintf("alert %s %s %s -> %s", old.ID, old.Name, old.State, alert.State))
-
-		if alert.State == "inactive" {
-			a.notify(rec, "inactive")
-		}
 	}
 }
 

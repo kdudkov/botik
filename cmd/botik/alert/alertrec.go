@@ -1,6 +1,7 @@
 package alert
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -175,4 +176,19 @@ func (a *AlertRec) NeedToNotify() bool {
 	}
 
 	return false
+}
+
+func (a *AlertRec) String() string {
+	a.mx.RLock()
+	defer a.mx.RUnlock()
+
+	var res string
+
+	if a.muted {
+		res += "[muted] "
+	}
+
+	res += fmt.Sprintf("%s, state: %s, severity: %s", a.alert.Title(), a.alert.State, a.alert.Severity())
+
+	return res
 }

@@ -60,6 +60,7 @@ func (a *AlertManager) AddURL(alertUrl string) {
 	if alertInfo != nil && alertInfo.State != "inactive" {
 		ar := NewAlertRec(alertInfo, alertUrl)
 		a.alerts.Store(alertUrl, ar)
+		a.logger.Info(ar.String())
 	}
 }
 
@@ -87,10 +88,7 @@ func (a *AlertManager) alertProcessor() {
 				if alertInfo == nil {
 					a.logger.Info(fmt.Sprintf("remove %s alert (404)", key))
 					a.alerts.Delete(key)
-
-					if alertRec.State() != "inactive" {
-						a.notify(alertRec, "alert_good")
-					}
+					a.notify(alertRec, "alert_good")
 
 					return true
 				}

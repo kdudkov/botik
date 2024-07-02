@@ -1,20 +1,14 @@
 package util
 
-import (
-	"fmt"
-	"time"
-)
+const TIME_FMT = "02.01.2006 15:04"
 
-func FormatTime(t time.Time) string {
-	return fmt.Sprintf("%.2d.%.2d.%.4d %.2d:%.2d", t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute())
-}
-
-func IsInArray(str string, array []string) bool {
+func IsInArray(str string, array ...string) bool {
 	for _, s1 := range array {
 		if str == s1 {
 			return true
 		}
 	}
+
 	return false
 }
 

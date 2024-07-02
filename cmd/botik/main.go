@@ -5,7 +5,6 @@ import (
 	"botik/cmd/botik/answer"
 	"encoding/xml"
 	"fmt"
-	"html"
 	"log/slog"
 	"net"
 	"net/http"
@@ -34,6 +33,7 @@ type App struct {
 	notifyUsers []string
 	logger      *slog.Logger
 	am          *alert.AlertManager
+	ans         *answer.AnswerManager
 	alertUrls   chan string
 }
 
@@ -41,15 +41,24 @@ func NewApp() *App {
 	app := &App{
 		logger:    slog.Default(),
 		alertUrls: make(chan string, 20),
+		ans:       answer.New(),
 	}
 
 	app.am = alert.NewManager(slog.Default().With("logger", "alerts"), app.alertNotifier)
 
 	if h := viper.GetString("mahno.host"); h != "" {
-		if err := answer.RegisterAnswer("light", answer.NewLight(h)); err != nil {
+		if err := app.ans.RegisterAnswer("light", answer.NewLight(app.logger, h)); err != nil {
 			panic(err.Error())
 		}
 	}
+
+	if h := viper.GetString("camera.file"); h != "" {
+		if err := app.ans.RegisterAnswer("cam", answer.NewCamera(app.logger, h)); err != nil {
+			panic(err.Error())
+		}
+	}
+
+	app.ans.RegisterAnswer("alerts", answer.NewAlerts(app.logger, app.am))
 
 	return app
 }
@@ -212,39 +221,6 @@ func (app *App) Process(update tg.Update) {
 		}
 	}
 
-	// mute
-	if rm := message.ReplyToMessage; rm != nil && strings.ToLower(message.Text) == "mute" {
-		var id string
-		for _, s := range strings.Split(rm.Text, "\n") {
-			if strings.HasPrefix(s, "id:") {
-				id = s[3:]
-				break
-			}
-		}
-
-		if id == "" {
-			return
-		}
-
-		app.logger.Info("mute id " + id)
-
-		app.am.Range(func(ar *alert.AlertRec) bool {
-			if ar.Alert().ID == id {
-				ar.Mute()
-				go app.sendTgWithMode(
-					message.From.ID,
-					html.EscapeString(html.EscapeString(fmt.Sprintf("alert %s is muted", ar.Alert().Name))),
-					"HTML",
-				)
-				return false
-			}
-
-			return true
-		})
-
-		return
-	}
-
 	if message.Text == "" {
 		logger.Info("empty message")
 		return
@@ -252,7 +228,13 @@ func (app *App) Process(update tg.Update) {
 
 	logger.Info("message: " + message.Text)
 
-	ans := answer.CheckAnswer(user, message.Text)
+	replText := ""
+
+	if message.ReplyToMessage != nil {
+		replText = message.ReplyToMessage.Text
+	}
+
+	ans := app.ans.CheckAnswer(user, message.Text, replText)
 	var msg tg.Chattable
 
 	if ans.Photo != "" {

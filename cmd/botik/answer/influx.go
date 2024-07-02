@@ -43,19 +43,19 @@ type Pressure struct {
 	Dia  uint16
 }
 
-func (i *Influx) Check(user string, msg string) (q *Q) {
+func (i *Influx) Check(user string, msg string, repl string) (q *Q) {
 	q = &Q{Msg: msg, User: strings.ToLower(user)}
 
 	words := q.Words()
 
-	if util.IsInArray(words[0], []string{"давление", "bp"}) {
+	if util.IsInArray(words[0], "давление", "bp") {
 		q.Matched = true
 		q.Prefix = words[0]
 		q.Cmd = BP
 		return
 	}
 
-	if util.IsInArray(words[0], []string{"вес", "weight"}) {
+	if util.IsInArray(words[0], "вес", "weight") {
 		q.Matched = true
 		q.Prefix = words[0]
 		q.Cmd = WEIGHT
@@ -134,7 +134,7 @@ func (i *Influx) Process(q *Q) *Answer {
 }
 
 func (p *Pressure) String() string {
-	return fmt.Sprintf("%s %d/%d", util.FormatTime(p.Time), p.Sys, p.Dia)
+	return fmt.Sprintf("%s %d/%d", p.Time.Format(util.TIME_FMT), p.Sys, p.Dia)
 }
 
 func (i *Influx) sendBP(name string, sys uint16, dia uint16, note string) error {

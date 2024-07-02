@@ -23,14 +23,14 @@ type Light struct {
 	logger *slog.Logger
 }
 
-func NewLight(host string) *Light {
+func NewLight(logger *slog.Logger, host string) *Light {
 	return &Light{
 		mahno:  api.NewMahnoApi(host),
-		logger: slog.Default().With("logger", "light"),
+		logger: logger.With("logger", "light"),
 	}
 }
 
-func (l *Light) Check(user string, msg string) (q *Q) {
+func (l *Light) Check(user string, msg string, repl string) (q *Q) {
 	m := strings.ToLower(msg)
 	q = &Q{Msg: msg, User: user}
 

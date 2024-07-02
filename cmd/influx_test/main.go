@@ -23,7 +23,7 @@ func main() {
 
 	if len(r) == 1 {
 		if p, err := answer.MapToPressure(r[0]); err == nil {
-			fmt.Printf("Last record: %s\n", util.FormatTime(p.Time))
+			fmt.Printf("Last record: %s\n", p.Time.Format(util.TIME_FMT))
 			fmt.Printf("%d/%d", p.Sys, p.Dia)
 		}
 	}

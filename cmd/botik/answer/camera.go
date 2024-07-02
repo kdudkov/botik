@@ -11,19 +11,19 @@ type Camera struct {
 	logger *slog.Logger
 }
 
-func NewCamera() *Camera {
+func NewCamera(logger *slog.Logger, img string) *Camera {
 	return &Camera{
-		img:    "/home/motion/lastsnap.jpg",
-		logger: slog.Default().With("logger", "camera"),
+		img:    img,
+		logger: logger.With("logger", "camera"),
 	}
 }
 
-func (cam *Camera) Check(user string, msg string) (q *Q) {
+func (cam *Camera) Check(user string, msg string, repl string) (q *Q) {
 	q = &Q{Msg: msg, User: strings.ToLower(user)}
 
 	words := q.Words()
 
-	if util.IsInArray(words[0], []string{"камера", "cam"}) {
+	if util.IsInArray(words[0], "камера", "cam") {
 		q.Matched = true
 		q.Prefix = words[0]
 		q.Cmd = "camera"

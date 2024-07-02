@@ -4,11 +4,24 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 )
 
+type AnswerManager struct {
+	answerers map[string]Answerer
+	mx        sync.RWMutex
+}
+
+func New() *AnswerManager {
+	return &AnswerManager{
+		answerers: make(map[string]Answerer),
+		mx:        sync.RWMutex{},
+	}
+}
+
 type Answerer interface {
-	Check(user string, msg string) *Q
+	Check(user string, msg string, repl string) *Q
 	Process(q *Q) *Answer
 }
 
@@ -19,6 +32,7 @@ type Answer struct {
 
 type Q struct {
 	Msg     string
+	Repl    string
 	Prefix  string
 	Cmd     string
 	Matched bool
@@ -33,10 +47,6 @@ func PhotoAnswer(file string) *Answer {
 	return &Answer{Photo: file}
 }
 
-func (q *Q) short() string {
-	return q.Msg[len(q.Prefix):]
-}
-
 func (q *Q) Words() []string {
 	res := strings.FieldsFunc(strings.ToLower(q.Msg), func(r rune) bool {
 		//return unicode.IsSpace(r) || unicode.IsPunct(r)
@@ -49,23 +59,27 @@ func (q *Q) Words() []string {
 	return res
 }
 
-var Answers = make(map[string]Answerer, 0)
+func (am *AnswerManager) RegisterAnswer(name string, ans Answerer) error {
+	am.mx.Lock()
+	defer am.mx.Unlock()
 
-func RegisterAnswer(name string, ans Answerer) error {
-	_, existing := Answers[name]
+	_, existing := am.answerers[name]
 	if existing {
 		return fmt.Errorf("answer with name '%s' is already registered", name)
 	}
 
-	Answers[name] = ans
+	am.answerers[name] = ans
 	return nil
 }
 
-func CheckAnswer(user string, msg string) *Answer {
+func (am *AnswerManager) CheckAnswer(user string, msg string, repl string) *Answer {
+	am.mx.RLock()
+	defer am.mx.RUnlock()
+
 	msg1 := strings.TrimLeft(msg, "/")
 
-	for _, ans := range Answers {
-		if q := ans.Check(user, msg1); q.Matched {
+	for _, ans := range am.answerers {
+		if q := ans.Check(user, msg1, repl); q.Matched {
 			return ans.Process(q)
 		}
 	}

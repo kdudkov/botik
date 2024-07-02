@@ -35,6 +35,7 @@ type Q struct {
 	Repl    string
 	Prefix  string
 	Cmd     string
+	Payload string
 	Matched bool
 	User    string
 }

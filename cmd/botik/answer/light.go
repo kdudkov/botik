@@ -10,8 +10,6 @@ import (
 const (
 	ON          = "ON"
 	OFF         = "OFF"
-	ALL_ON      = "ALL_ON"
-	ALL_OFF     = "ALL_OFF"
 	NIGHT       = "NIGHT"
 	DAY         = "DAY"
 	NOBODY_HOME = "NOBODY_HOME"
@@ -49,8 +47,8 @@ func (l *Light) Check(user string, msg string, repl string) (q *Q) {
 		q.Matched = true
 		q.Prefix = s
 		q.Cmd = ON
-		if IndexOf(words, "весь", "везде", "улице", "уличный") > -1 {
-			q.Cmd = ALL_ON
+		if IndexOf(words, "весь", "везде", "улице", "уличный", "снаружи") > -1 {
+			q.Payload = "lights_out"
 		}
 		return
 	}
@@ -60,7 +58,10 @@ func (l *Light) Check(user string, msg string, repl string) (q *Q) {
 		q.Prefix = s
 		q.Cmd = OFF
 		if IndexOf(words, "весь", "везде") > -1 {
-			q.Cmd = ALL_OFF
+			q.Payload = "lights"
+		}
+		if IndexOf(words, "улице", "уличный", "снаружи") > -1 {
+			q.Payload = "lights_out"
 		}
 		return
 	}
@@ -102,49 +103,52 @@ func (l *Light) Process(q *Q) *Answer {
 
 	switch q.Cmd {
 	case ON:
-		target := getTarget(words)
-		if target == "" {
-			return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
+		if q.Payload != "" {
+			l.logger.Info("lights on for " + q.Payload)
+			err := l.mahno.GroupCommand(q.Payload, ON)
+			if err != nil {
+				return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
+			}
+
+			return TextAnswer("включаю свет")
+		} else {
+			target := getTarget(words)
+			if target == "" {
+				return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
+			}
+
+			l.logger.Info("light ON to " + target)
+			err := l.mahno.ItemCommand(target, ON)
+
+			if err != nil {
+				return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
+			}
+			return TextAnswer(fmt.Sprintf("включаю %s", target))
 		}
 
-		l.logger.Info("light ON to " + target)
-		err := l.mahno.ItemCommand(target, ON)
-
-		if err != nil {
-			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
-		}
-		return TextAnswer(fmt.Sprintf("включаю %s", target))
 	case OFF:
-		target := getTarget(words)
-		if target == "" {
-			return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
+		if q.Payload != "" {
+			l.logger.Info("lights off for " + q.Payload)
+			err := l.mahno.GroupCommand(q.Payload, OFF)
+			if err != nil {
+				return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
+			}
+
+			return TextAnswer("включаю свет")
+		} else {
+			target := getTarget(words)
+			if target == "" {
+				return TextAnswer(fmt.Sprintf("не понимаю %s", q.Msg))
+			}
+
+			l.logger.Info("light OFF to " + target)
+			err := l.mahno.ItemCommand(target, OFF)
+
+			if err != nil {
+				return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
+			}
+			return TextAnswer(fmt.Sprintf("выключаю %s", target))
 		}
-
-		l.logger.Info("light OFF to " + target)
-		err := l.mahno.ItemCommand(target, OFF)
-
-		if err != nil {
-			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
-		}
-		return TextAnswer(fmt.Sprintf("выключаю %s", target))
-
-	case ALL_ON:
-		l.logger.Info("all lights on")
-		err := l.mahno.GroupCommand("lights_out", ON)
-		if err != nil {
-			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
-		}
-
-		return TextAnswer("включаю весь свет")
-
-	case ALL_OFF:
-		l.logger.Info("all lights off")
-		err := l.mahno.GroupCommand("lights", ON)
-		if err != nil {
-			return TextAnswer(fmt.Sprintf("ошибка: %s", err.Error()))
-		}
-
-		return TextAnswer("выключаю весь свет")
 
 	case DAY:
 		l.logger.Info("home mode day")

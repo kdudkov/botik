@@ -35,7 +35,7 @@ func TestInfluxSendWeight(t *testing.T) {
 	var q *Q
 	var words []string
 
-	q = l.Check("user", "Вес 90.1")
+	q = l.Check("user", "Вес 90.1", "")
 	words = q.Words()
 
 	assert.True(t, q.Matched)
@@ -53,7 +53,7 @@ func TestInfluxSendWeight(t *testing.T) {
 
 	mock.result = ""
 
-	q = l.Check("user", "Вес 90,2")
+	q = l.Check("user", "Вес 90,2", "")
 	words = q.Words()
 
 	assert.True(t, q.Matched)
@@ -71,7 +71,7 @@ func TestInfluxSendWeight(t *testing.T) {
 func TestInfluxSendBPt(t *testing.T) {
 	var q *Q
 
-	q = l.Check("user", "Давление 120 70")
+	q = l.Check("user", "Давление 120 70", "")
 
 	assert.True(t, q.Matched)
 	assert.Equal(t, BP, q.Cmd)
@@ -87,7 +87,7 @@ func TestInfluxSendBPt(t *testing.T) {
 func TestInfluxSendBPtNote(t *testing.T) {
 	var q *Q
 
-	q = l.Check("user", "Давление 120 70 и всё круто")
+	q = l.Check("user", "Давление 120 70 и всё круто", "")
 
 	assert.True(t, q.Matched)
 	assert.Equal(t, BP, q.Cmd)

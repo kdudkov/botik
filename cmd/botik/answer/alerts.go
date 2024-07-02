@@ -75,13 +75,13 @@ func (cam *Alerts) Process(q *Q) *Answer {
 		if ans != "" {
 			return TextAnswer(ans)
 		} else {
-			return TextAnswer("alert with is not found")
+			return TextAnswer("alert with id is not found")
 		}
 
 	case "alerts":
 		var ans string
 		cam.am.Range(func(ar *alert.AlertRec) bool {
-			ans += ar.String() + "\n"
+			ans += "- " + ar.String() + "\n"
 
 			return true
 		})

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"botik/cmd/botik/alert"
-	"botik/cmd/botik/answer"
 	"encoding/xml"
 	"fmt"
 	"log/slog"
@@ -15,6 +13,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"botik/cmd/botik/alert"
+	"botik/cmd/botik/answer"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/kdudkov/goatak/cot"
@@ -34,14 +35,12 @@ type App struct {
 	logger      *slog.Logger
 	am          *alert.AlertManager
 	ans         *answer.AnswerManager
-	alertUrls   chan string
 }
 
 func NewApp() *App {
 	app := &App{
-		logger:    slog.Default(),
-		alertUrls: make(chan string, 20),
-		ans:       answer.New(),
+		logger: slog.Default(),
+		ans:    answer.New(),
 	}
 
 	app.am = alert.NewManager(slog.Default().With("logger", "alerts"), app.alertNotifier)
@@ -130,12 +129,6 @@ func (app *App) Run() {
 
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		for alertUrl := range app.alertUrls {
-			go app.am.AddURL(alertUrl)
-		}
-	}()
 
 	app.am.Start()
 

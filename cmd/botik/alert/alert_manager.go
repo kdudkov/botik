@@ -19,6 +19,7 @@ var alerts embed.FS
 type AlertManager struct {
 	logger   *slog.Logger
 	alerts   sync.Map
+	chIn     chan string
 	client   *http.Client
 	tpl      *template.Template
 	notifier func(msg string)
@@ -34,6 +35,7 @@ func NewManager(logger *slog.Logger, notifier func(msg string)) *AlertManager {
 	return &AlertManager{
 		logger:   logger,
 		alerts:   sync.Map{},
+		chIn:     make(chan string, 50),
 		client:   &http.Client{Timeout: time.Second * 3},
 		tpl:      tmpl,
 		notifier: notifier,
@@ -42,25 +44,38 @@ func NewManager(logger *slog.Logger, notifier func(msg string)) *AlertManager {
 
 func (a *AlertManager) Start() {
 	go a.alertProcessor()
+	go a.urlAdder()
 }
 
-func (a *AlertManager) AddURL(alertUrl string) {
-	if _, ok := a.alerts.Load(alertUrl); ok {
+func (a *AlertManager) AddUrl(url string) {
+	select {
+	case a.chIn <- url:
+		return
+	default:
 		return
 	}
+}
 
-	a.logger.Info("new alert: " + alertUrl)
+func (a *AlertManager) urlAdder() {
+	for url := range a.chIn {
+		if _, ok := a.alerts.Load(url); ok {
+			return
+		}
 
-	alertInfo, err := a.fetchAlertInfo(alertUrl)
+		a.logger.Info("new alert: " + url)
 
-	if err != nil {
-		a.logger.Error("error getting alert", "error", err)
-	}
+		alertInfo, err := a.fetchAlertInfo(url)
 
-	if alertInfo != nil && alertInfo.State != "inactive" {
-		ar := NewAlertRec(alertInfo, alertUrl)
-		a.alerts.Store(alertUrl, ar)
-		a.logger.Info(ar.String())
+		if err != nil {
+			a.logger.Error("error getting alert", "error", err)
+			return
+		}
+
+		if alertInfo != nil {
+			ar := NewAlertRec(alertInfo, url)
+			a.alerts.Store(url, ar)
+			a.logger.Info(ar.String())
+		}
 	}
 }
 
@@ -112,6 +127,7 @@ func (a *AlertManager) alertProcessor() {
 		time.Sleep(time.Second)
 	}
 }
+
 func (a *AlertManager) fetchAlertInfo(alertUrl string) (*Alert, error) {
 	resp, err := a.client.Get(alertUrl)
 	if err != nil {

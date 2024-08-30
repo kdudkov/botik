@@ -1,11 +1,12 @@
 package main
 
 import (
-	"botik/cmd/botik/alert"
 	"fmt"
 	"html"
 	"strings"
 	"time"
+
+	"botik/cmd/botik/alert"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/gofiber/fiber/v2"
@@ -13,7 +14,7 @@ import (
 )
 
 func runHttpServer(app *App) {
-	a := fiber.New()
+	a := fiber.New(fiber.Config{DisableStartupMessage: true})
 	//a.Use(logger.New())
 
 	a.Post("/send/:name", SendHandlerFunc(app))
@@ -115,23 +116,19 @@ func GrafanaHandlerFunc(app *App) fiber.Handler {
 
 func AlertsHandlerFunc(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		list := new([]AlertReq)
+		list := make([]*AlertReq, 0)
 
-		if err := c.BodyParser(list); err != nil {
+		if err := c.BodyParser(&list); err != nil {
 			return err
 		}
 
-		if list == nil {
-			return nil
-		}
-
-		for _, a := range *list {
+		for _, a := range list {
+			app.logger.Info("new alert url: " + string(c.Body()))
 			url := strings.ReplaceAll(a.GeneratorURL, "/vmalert/alert?", "/api/v1/alert?")
-			app.alertUrls <- url
+			app.am.AddUrl(url)
 		}
 
-		_, _ = c.WriteString("ok")
-		return nil
+		return c.SendString("ok")
 	}
 }
 

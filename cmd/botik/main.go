@@ -18,7 +18,7 @@ import (
 	"botik/cmd/botik/answer"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/kdudkov/goatak/cot"
+	"github.com/kdudkov/goatak/pkg/cot"
 	"github.com/spf13/viper"
 )
 
@@ -256,7 +256,7 @@ func (app *App) getUser(id int64) string {
 }
 
 func makeEvent(id, name string, lat, lon float64) *cot.Event {
-	evt := cot.XmlBasicMsg("a-f-G", id, time.Hour)
+	evt := cot.XMLBasicMsg("a-f-G", id, time.Hour)
 	evt.Point.Lon = lon
 	evt.Point.Lat = lat
 

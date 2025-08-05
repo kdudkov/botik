@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
-	github.com/gofiber/fiber/v2 v2.52.8
+	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/kdudkov/goatak v0.22.0
 	github.com/kdudkov/goutils v0.0.0-20240819112558-460e48aa75d7
 	github.com/spf13/viper v1.20.1

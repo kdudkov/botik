@@ -10,7 +10,6 @@ import (
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/gofiber/fiber/v2"
-	"github.com/spf13/viper"
 )
 
 func runHttpServer(app *App) {
@@ -23,9 +22,9 @@ func runHttpServer(app *App) {
 	a.Get("/api/alerts", GetAlertsHandlerFunc(app))
 	a.Get("/api/alerts/:id/mute", GetMuteAlertHandlerFunc(app))
 
-	app.logger.Info("start listener on " + viper.GetString("http.address"))
+	app.logger.Info("start listener on " + app.conf.Listen())
 
-	if err := a.Listen(viper.GetString("http.address")); err != nil {
+	if err := a.Listen(app.conf.Listen()); err != nil {
 		app.logger.Error("server error", "error", err)
 	}
 }
@@ -35,7 +34,7 @@ type GrafanaReq struct {
 	EvalMatches []struct {
 		Value  int         `json:"value"`
 		Metric string      `json:"metric"`
-		Tags   interface{} `json:"tags"`
+		Tags   any `json:"tags"`
 	} `json:"evalMatches"`
 	Message  string `json:"message"`
 	OrgID    int    `json:"orgId"`
@@ -98,7 +97,7 @@ func GrafanaHandlerFunc(app *App) fiber.Handler {
 
 		text := MakeGrafanaMsg(r)
 
-		for _, user := range app.notifyUsers {
+		for _, user := range app.conf.Strings("notify") {
 			id, err := app.IdByName(user)
 
 			if err != nil {

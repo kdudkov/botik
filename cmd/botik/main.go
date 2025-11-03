@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"log/slog"
@@ -19,7 +20,6 @@ import (
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/kdudkov/goatak/pkg/cot"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -28,33 +28,37 @@ var (
 )
 
 type App struct {
-	bot         *tg.BotAPI
-	users       map[string]string
-	groups      map[string]string
-	notifyUsers []string
-	logger      *slog.Logger
-	am          *alert.AlertManager
-	ans         *answer.AnswerManager
+	conf   *AppConfig
+	bot    *tg.BotAPI
+	cl     *MqttClient
+	logger *slog.Logger
+	am     *alert.AlertManager
+	ans    *answer.AnswerManager
 }
 
-func NewApp() *App {
+func NewApp(conf *AppConfig) *App {
 	app := &App{
+		conf:   conf,
 		logger: slog.Default(),
 		ans:    answer.New(),
 	}
 
 	app.am = alert.NewManager(slog.Default().With("logger", "alerts"), app.alertNotifier)
 
-	if h := viper.GetString("mahno.host"); h != "" {
-		if err := app.ans.RegisterAnswer("light", answer.NewLight(app.logger, h)); err != nil {
+	if s := app.conf.String("mahno.host"); s != "" {
+		if err := app.ans.RegisterAnswer("light", answer.NewLight(app.logger, s)); err != nil {
 			panic(err.Error())
 		}
 	}
 
-	if h := viper.GetString("camera.file"); h != "" {
-		if err := app.ans.RegisterAnswer("cam", answer.NewCamera(app.logger, h)); err != nil {
+	if s := app.conf.String("camera.file"); s != "" {
+		if err := app.ans.RegisterAnswer("cam", answer.NewCamera(app.logger, s)); err != nil {
 			panic(err.Error())
 		}
+	}
+
+	if app.conf.MQTTServer() != "" {
+		app.cl = NewMqttClient(app.logger, app.conf, app.onMessage)
 	}
 
 	app.ans.RegisterAnswer("alerts", answer.NewAlerts(app.logger, app.am))
@@ -63,7 +67,7 @@ func NewApp() *App {
 }
 
 func (app *App) GetUpdatesChannel() (tg.UpdatesChannel, error) {
-	if webhook := viper.GetString("webhook.ext"); webhook != "" {
+	if webhook := app.conf.String("webhook.ext"); webhook != "" {
 		app.logger.Info("starting webhook " + webhook)
 
 		wh, _ := tg.NewWebhook(webhook)
@@ -78,17 +82,17 @@ func (app *App) GetUpdatesChannel() (tg.UpdatesChannel, error) {
 
 		if info.LastErrorDate != 0 {
 			app.logger.Error("Telegram callback failed", "error", info.LastErrorMessage)
-			return nil, fmt.Errorf(info.LastErrorMessage)
+			return nil, fmt.Errorf("callback errror with %s", info.LastErrorMessage)
 		}
 
-		app.logger.Info(fmt.Sprintf("start listener on %s, path %s", viper.GetString("webhook.listen"), viper.GetString("webhook.path")))
+		app.logger.Info(fmt.Sprintf("start listener on %s, path %s", app.conf.String("webhook.listen"), app.conf.String("webhook.path")))
 		go func() {
-			if err := http.ListenAndServe(viper.GetString("webhook.listen"), nil); err != nil {
+			if err := http.ListenAndServe(app.conf.String("webhook.listen"), nil); err != nil {
 				panic(err)
 			}
 		}()
 
-		return app.bot.ListenForWebhook(viper.GetString("webhook.path")), nil
+		return app.bot.ListenForWebhook(app.conf.String("webhook.path")), nil
 	}
 
 	app.logger.Info("start polling")
@@ -101,7 +105,7 @@ func (app *App) GetUpdatesChannel() (tg.UpdatesChannel, error) {
 
 func (app *App) quit() {
 	app.bot.StopReceivingUpdates()
-	if webhook := viper.GetString("webhook.ext"); webhook != "" {
+	if webhook := app.conf.String("webhook.ext"); webhook != "" {
 		app.removeWebhook()
 	}
 }
@@ -113,12 +117,12 @@ func (app *App) removeWebhook() {
 }
 
 func (app *App) Run() {
-	for k := range app.users {
-		app.logger.Info("user " + k)
-	}
+	// for k := range app.users {
+	// 	app.logger.Info("user " + k)
+	// }
 
 	var err error
-	app.bot, err = tg.NewBotAPI(viper.GetString("token"))
+	app.bot, err = tg.NewBotAPI(app.conf.String("token"))
 
 	if err != nil {
 		panic("can't start bot " + err.Error())
@@ -126,11 +130,11 @@ func (app *App) Run() {
 	app.logger.Info("registering " + app.bot.Self.String())
 
 	go runHttpServer(app)
-
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
-
 	app.am.Start()
+
+	if app.cl != nil {
+		go app.cl.Run(context.TODO())
+	}
 
 	updates, err := app.GetUpdatesChannel()
 
@@ -138,6 +142,9 @@ func (app *App) Run() {
 		app.logger.Error(err.Error())
 		return
 	}
+
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
 
 	for {
 		select {
@@ -151,12 +158,37 @@ func (app *App) Run() {
 	}
 }
 
+func (app *App) onMessage(topic string, msg []byte) {
+	chunks := strings.Split(topic, "/")
+
+	if len(chunks) == 4 && chunks[3] == "snapshot" {
+		for _, user := range app.conf.Strings("notify") {
+			id, err := app.IdByName(user)
+
+			if err != nil {
+				app.logger.Error("invalid user "+user, slog.Any("error", err))
+				continue
+			}
+
+			msg := tg.NewPhoto(id, tg.FileBytes{Bytes: msg, Name: fmt.Sprintf("cam %s %s", chunks[1], chunks[2])})
+
+			if _, err := app.bot.Send(msg); err != nil {
+				app.logger.Error("can't send message", slog.Any("error", err))
+			}
+		}
+	}
+
+	if topic == "frigate/reviews" {
+		app.ProcessReview(msg)
+	}
+}
+
 func (app *App) alertNotifier(text string) {
-	for _, user := range app.notifyUsers {
+	for _, user := range app.conf.Strings("notify") {
 		id, err := app.IdByName(user)
 
 		if err != nil {
-			app.logger.Error("invalid user "+user, "error", err)
+			app.logger.Error("invalid user "+user, slog.Any("error", err))
 			continue
 		}
 
@@ -164,7 +196,7 @@ func (app *App) alertNotifier(text string) {
 			logger.Info("sending notification")
 
 			if _, err := app.sendTgWithMode(id, text, "HTML"); err != nil {
-				logger.Error("error send message", "error", err)
+				logger.Error("error send message", slog.Any("error", err))
 			}
 		}(app.logger.With("user", user, "id", id), id, text)
 	}
@@ -189,7 +221,7 @@ func (app *App) Process(update tg.Update) {
 		return
 	}
 
-	logger := app.logger.With("from", message.From.UserName, "id", message.From.ID)
+	logger := app.logger.With(slog.String("from", message.From.UserName), slog.Int64("id", message.From.ID))
 
 	user := app.getUser(message.From.ID)
 
@@ -199,7 +231,7 @@ func (app *App) Process(update tg.Update) {
 		_, err := app.bot.Send(msg)
 
 		if err != nil {
-			logger.Error("can't send message", "error", err.Error())
+			logger.Error("can't send message", slog.Any("error", err))
 		}
 		return
 	}
@@ -207,7 +239,7 @@ func (app *App) Process(update tg.Update) {
 	// location
 	if loc := getLocation(update); loc != nil {
 		logger.Info(fmt.Sprintf("location: %f %f", loc.Latitude, loc.Longitude))
-		if viper.GetString("cot.server") != "" {
+		if app.conf.String("cot.server") != "" {
 			evt := makeEvent(fmt.Sprintf("tg-%d", message.From.ID), user, loc.Latitude, loc.Longitude)
 			app.sendCotMessage(evt)
 			return
@@ -241,13 +273,13 @@ func (app *App) Process(update tg.Update) {
 	_, err := app.bot.Send(msg)
 
 	if err != nil {
-		logger.Error("can't send message", "error", err.Error())
+		logger.Error("can't send message", slog.Any("error", err))
 	}
 }
 
 func (app *App) getUser(id int64) string {
 	sid := strconv.Itoa(int(id))
-	for name, uid := range app.users {
+	for name, uid := range app.conf.StringMap("users") {
 		if uid == sid {
 			return name
 		}
@@ -278,21 +310,13 @@ func getLocation(update tg.Update) *tg.Location {
 }
 
 func (app *App) IdByName(name string) (int64, error) {
-	if ids, ok := app.users[strings.ToLower(name)]; ok {
-		if id, err := strconv.ParseInt(ids, 10, 64); err == nil {
-			return id, nil
-		} else {
-			app.logger.Error("can't parse int " + ids)
-			return 0, err
-		}
-	}
+	nl := strings.ToLower(name)
 
-	if ids, ok := app.groups[strings.ToLower(name)]; ok {
-		if id, err := strconv.ParseInt(ids, 10, 64); err == nil {
-			return id, nil
-		} else {
-			app.logger.Error("can't parse int " + ids)
-			return 0, err
+	for _, gr := range []string{"users", "groups"} {
+		for n, id := range app.conf.IntMap(gr) {
+			if strings.ToLower(n) == nl {
+				return int64(id), nil
+			}
 		}
 	}
 
@@ -300,45 +324,42 @@ func (app *App) IdByName(name string) (int64, error) {
 }
 
 func (app *App) sendCotMessage(evt *cot.Event) {
-	if viper.GetString("cot.server") == "" {
+	if app.conf.String("cot.server") == "" {
 		return
 	}
 
 	msg, err := xml.Marshal(evt)
 	if err != nil {
-		app.logger.Error("marshal error", "error", err)
+		app.logger.Error("marshal error", slog.Any("error", err))
 		return
 	}
 
-	conn, err := net.Dial("udp", viper.GetString("cot.server"))
+	conn, err := net.Dial("udp", app.conf.String("cot.server"))
 	if err != nil {
-		app.logger.Error("connection error", "error", err)
+		app.logger.Error("connection error", slog.Any("error", err))
 		return
 	}
 
 	conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
 	if _, err := conn.Write(msg); err != nil {
-		app.logger.Error("write error", "error", err)
+		app.logger.Error("write error", slog.Any("error", err))
 	}
 	conn.Close()
 }
 
 func main() {
-	viper.SetConfigName("botik")
-	viper.AddConfigPath(".")
+	conf := NewAppConfig()
+	conf.Load("botik.yml")
 
-	if err := viper.ReadInConfig(); err != nil {
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+	var h slog.Handler
+	if conf.Debug() {
+		h = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	} else {
+		h = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
-
-	h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
 
 	slog.SetDefault(slog.New(h))
 
-	app := NewApp()
-	app.users = viper.GetStringMapString("users")
-	app.groups = viper.GetStringMapString("groups")
-	app.notifyUsers = viper.GetStringSlice("notify")
-
+	app := NewApp(conf)
 	app.Run()
 }

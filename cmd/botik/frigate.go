@@ -15,14 +15,6 @@ type Review struct {
 	After  *ReviewInfo `json:"after"`
 }
 
-type ObjectsData struct {
-	Detections []string `json:"detections"`
-	Objects    []string `json:"objects"`
-	SubLabels  []string `json:"sub_labels"`
-	Zones      []string `json:"zones"`
-	Audio      []any    `json:"audio"`
-}
-
 type ReviewInfo struct {
 	ID        string       `json:"id"`
 	Camera    string       `json:"camera"`
@@ -33,27 +25,35 @@ type ReviewInfo struct {
 	Data      *ObjectsData `json:"data"`
 }
 
+type ObjectsData struct {
+	Detections []string `json:"detections"`
+	Objects    []string `json:"objects"`
+	SubLabels  []string `json:"sub_labels"`
+	Zones      []string `json:"zones"`
+	Audio      []any    `json:"audio"`
+}
+
 func (app *App) ProcessReview(b []byte) error {
+	app.logger.Debug(string(b))
+	
 	review := new(Review)
 
 	if err := json.Unmarshal(b, &review); err != nil {
 		return err
 	}
 
-	if review.After == nil {
+	ra := review.After
+
+	if ra == nil {
 		slog.Error("no after")
 		return nil
 	}
 
-	var msg string
-
-	if (review.Type == "new" && review.After.Severity == "alert") || (review.Type == "update" && review.Before.Severity != "alert" && review.After.Severity == "alert") {
-		msg = fmt.Sprintf("New alert cam: %s, zones: %s, objects: %s", review.After.Camera, strings.Join(review.After.Data.Zones, ","), strings.Join(review.After.Data.Objects, ","))
-	}
-
-	if msg == "" {
+	if !notifyUser(review) {
 		return nil
 	}
+
+	msg := fmt.Sprintf("New alert cam: %s, zones: %s, objects: %s", ra.Camera, strings.Join(ra.Data.Zones, ","), strings.Join(ra.Data.Objects, ","))
 
 	for _, user := range app.conf.Strings("notify") {
 		id, err := app.IdByName(user)
@@ -68,9 +68,9 @@ func (app *App) ProcessReview(b []byte) error {
 		if _, err := app.bot.Send(msg); err != nil {
 			app.logger.Error("can't send message", slog.Any("error", err))
 		}
-		
-		if review.After.ThumbPath != "" {
-			f,_ := strings.CutPrefix(review.After.ThumbPath, "/media/frigate")
+
+		if ra.ThumbPath != "" {
+			f, _ := strings.CutPrefix(ra.ThumbPath, "/media/frigate")
 			f = "/home/kott/frigate/storage" + f
 			msg2 := tg.NewPhoto(id, tg.FilePath(f))
 
@@ -79,6 +79,22 @@ func (app *App) ProcessReview(b []byte) error {
 			}
 		}
 	}
-	
+
 	return nil
+}
+
+func notifyUser(r *Review) bool {
+	if r.Type == "new" && r.After.Severity == "alert" {
+		return true
+	}
+
+	if r.Type == "update" && r.Before.Severity != "alert" && r.After.Severity == "alert" {
+		return true
+	}
+
+	if r.Type == "update" && r.After.Severity == "alert" && r.Before.ThumbPath == "" && r.After.ThumbPath != "" {
+		return true
+	}
+
+	return false
 }

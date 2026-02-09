@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
-	github.com/gofiber/fiber/v2 v2.52.9
+	github.com/gofiber/fiber/v2 v2.52.11
 	github.com/kdudkov/goatak v0.23.0
 	github.com/kdudkov/goutils v0.0.0-20240819112558-460e48aa75d7
 	github.com/knadh/koanf/parsers/yaml v1.1.0

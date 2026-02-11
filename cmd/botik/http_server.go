@@ -65,26 +65,26 @@ func SendHandlerFunc(app *App) fiber.Handler {
 		if name == "" {
 			app.logger.Error("nil name")
 
-			return c.Status(fiber.StatusNotFound).SendString("no name")
+			return fiber.NewError(fiber.StatusNotFound, "no name")
 		}
 
 		if id, err := app.IdByName(name); err == nil {
-
 			body := c.Body()
 
 			if len(body) == 0 {
-				return c.SendString("empty body")
+				return fiber.NewError(fiber.StatusBadRequest, "empty body")
 			}
 
 			if _, err := app.sendTgWithMode(id, html.EscapeString(string(body)), "HTML"); err != nil {
-				return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
+				return err
 			}
 
 			return c.SendString("ok")
 		}
 
 		app.logger.Warn("user not found: " + name)
-		return c.SendStatus(fiber.StatusNotFound)
+		
+		return fiber.ErrNotFound
 	}
 }
 
@@ -106,9 +106,10 @@ func GrafanaHandlerFunc(app *App) fiber.Handler {
 			}
 
 			if _, err := app.sendTg(id, text); err != nil {
-				return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
+				return err
 			}
 		}
+		
 		return c.SendString("ok")
 	}
 }
@@ -118,7 +119,7 @@ func AlertsHandlerFunc(app *App) fiber.Handler {
 		list := make([]*AlertReq, 0)
 
 		if err := c.BodyParser(&list); err != nil {
-			return err
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
 		}
 
 		for _, a := range list {

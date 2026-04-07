@@ -32,9 +32,9 @@ func runHttpServer(app *App) {
 type GrafanaReq struct {
 	DashboardID int `json:"dashboardId"`
 	EvalMatches []struct {
-		Value  int         `json:"value"`
-		Metric string      `json:"metric"`
-		Tags   any `json:"tags"`
+		Value  int    `json:"value"`
+		Metric string `json:"metric"`
+		Tags   any    `json:"tags"`
 	} `json:"evalMatches"`
 	Message  string `json:"message"`
 	OrgID    int    `json:"orgId"`
@@ -65,7 +65,7 @@ func SendHandlerFunc(app *App) fiber.Handler {
 		if name == "" {
 			app.logger.Error("nil name")
 
-			return fiber.NewError(fiber.StatusNotFound, "no name")
+			return fiber.NewError(fiber.StatusBadRequest, "no name")
 		}
 
 		if id, err := app.IdByName(name); err == nil {
@@ -83,7 +83,7 @@ func SendHandlerFunc(app *App) fiber.Handler {
 		}
 
 		app.logger.Warn("user not found: " + name)
-		
+
 		return fiber.ErrNotFound
 	}
 }
@@ -109,7 +109,7 @@ func GrafanaHandlerFunc(app *App) fiber.Handler {
 				return err
 			}
 		}
-		
+
 		return c.SendString("ok")
 	}
 }

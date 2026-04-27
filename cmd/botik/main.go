@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
@@ -14,7 +15,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
+    
 	"botik/cmd/botik/alert"
 	"botik/cmd/botik/answer"
 
@@ -122,7 +123,7 @@ func (app *App) Run() {
 	// }
 
 	var err error
-	app.bot, err = tg.NewBotAPI(app.conf.String("token"))
+	app.bot, err = app.createBot()
 
 	if err != nil {
 		panic("can't start bot " + err.Error())
@@ -155,6 +156,25 @@ func (app *App) Run() {
 			app.quit()
 			return
 		}
+	}
+}
+
+func (app *App) createBot() (*tg.BotAPI, error) {
+	if proxyStr := app.conf.String("proxy"); proxyStr != "" {
+		proxyURL, err := url.Parse(proxyStr)
+		if err != nil {
+			return nil, err
+		}
+
+		client := &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyURL(proxyURL),
+			},
+		}
+
+		return tg.NewBotAPIWithClient(app.conf.String("token"), tg.APIEndpoint, client)
+	} else {
+		return tg.NewBotAPI(app.conf.String("token"))
 	}
 }
 

@@ -120,8 +120,8 @@ func (c *AppConfig) MQTTClientID() string {
 }
 
 func setDefaults(k *koanf.Koanf) {
-	k.Set("listen", ":8088")
-	k.Set("mqtt.server", "192.168.1.1")
+	_ = k.Set("listen", ":8088")
+	_ = k.Set("mqtt.server", "192.168.1.1")
 }
 
 func fileExists(path string) bool {

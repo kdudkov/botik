@@ -43,7 +43,7 @@ func NewMqttClient(logger *slog.Logger, c MqttConfig, cb func(topic string, payl
 		config:    c,
 		cb:        cb,
 	}
-	
+
 	cl.setup()
 
 	return cl
@@ -79,7 +79,7 @@ func (m *MqttClient) isConnected() bool {
 
 func (m *MqttClient) Run(ctx context.Context) {
 	m.Connect()
-	
+
 	for {
 		select {
 		case <-ctx.Done():

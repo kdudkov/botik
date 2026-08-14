@@ -35,7 +35,7 @@ type ObjectsData struct {
 
 func (app *App) ProcessReview(b []byte) error {
 	app.logger.Debug(string(b))
-	
+
 	review := new(Review)
 
 	if err := json.Unmarshal(b, &review); err != nil {

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const NotificationTime = time.Minute
+const NotificationTime = time.Minute * 60
 
 type Alert struct {
 	Labels       map[string]string `json:"labels"`
@@ -121,18 +121,6 @@ func (alert *Alert) NeedsNotify() bool {
 	}
 
 	return time.Since(alert.lastNotify) > NotificationTime
-}
-
-func (alert *Alert) Update(alert2 *Alert) {
-	alert.mx.Lock()
-	defer alert.mx.Unlock()
-
-	alert.StartsAt = alert2.StartsAt
-	alert.EndsAt = alert2.EndsAt
-
-	alert.Annotations = make(map[string]string)
-
-	maps.Copy(alert.Annotations, alert2.Annotations)
 }
 
 func (alert *Alert) DTO() *AlertDTO {

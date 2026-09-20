@@ -1,11 +1,12 @@
 package answer
 
 import (
-	"botik/cmd/botik/alert"
-	"botik/internal/util"
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"botik/cmd/botik/alert"
+	"botik/internal/util"
 )
 
 type Alerts struct {
@@ -62,10 +63,10 @@ func (cam *Alerts) Process(q *Q) *Answer {
 		cam.logger.Info("mute id " + id)
 
 		var ans string
-		cam.am.Range(func(ar *alert.AlertRec) bool {
-			if ar.Alert().ID == id {
+		cam.am.Range(func(ar *alert.Alert) bool {
+			if ar.Key() == id {
 				ar.Mute()
-				ans = fmt.Sprintf("alert %s is muted", ar.Alert().Name)
+				ans = fmt.Sprintf("alert %s is muted", ar.Name())
 				return false
 			}
 
@@ -80,7 +81,7 @@ func (cam *Alerts) Process(q *Q) *Answer {
 
 	case "alerts":
 		var ans string
-		cam.am.Range(func(ar *alert.AlertRec) bool {
+		cam.am.Range(func(ar *alert.Alert) bool {
 			ans += "- " + ar.String() + "\n"
 
 			return true

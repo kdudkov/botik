@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"html"
-	"strings"
 	"time"
 
 	"botik/cmd/botik/alert"
@@ -19,7 +18,6 @@ func runHttpServer(app *App) {
 	a.Post("/send/:name", SendHandlerFunc(app))
 	a.Post("/grafana", GrafanaHandlerFunc(app))
 	a.Post("/api/v2/alerts", AlertsHandlerFunc(app))
-	a.Get("/api/alerts", GetAlertsHandlerFunc(app))
 	a.Get("/api/alerts/:id/mute", GetMuteAlertHandlerFunc(app))
 
 	app.logger.Info("start listener on " + app.conf.Listen())
@@ -49,13 +47,11 @@ type GrafanaReq struct {
 }
 
 type AlertReq struct {
+	Labels       map[string]string `json:"labels"`
+	Annotations  map[string]string `json:"annotations"`
 	StartsAt     time.Time         `json:"startsAt"`
 	EndsAt       time.Time         `json:"endsAt"`
 	GeneratorURL string            `json:"generatorURL"`
-	Labels       map[string]string `json:"labels"`
-	Annotations  struct {
-		Summary string `json:"summary"`
-	} `json:"annotations"`
 }
 
 func SendHandlerFunc(app *App) fiber.Handler {
@@ -116,32 +112,18 @@ func GrafanaHandlerFunc(app *App) fiber.Handler {
 
 func AlertsHandlerFunc(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		list := make([]*AlertReq, 0)
+		list := make([]*alert.Alert, 0)
 
 		if err := c.BodyParser(&list); err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, err.Error())
 		}
 
 		for _, a := range list {
-			app.logger.Info("new alert url: " + string(c.Body()))
-			url := strings.ReplaceAll(a.GeneratorURL, "/vmalert/alert?", "/api/v1/alert?")
-			app.am.AddUrl(url)
+			app.logger.Info("new alert: " + a.String())
+			app.am.Add(a)
 		}
 
 		return c.SendString("ok")
-	}
-}
-
-func GetAlertsHandlerFunc(app *App) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		list := make([]*alert.AlertRecDTO, 0)
-
-		app.am.Range(func(ar *alert.AlertRec) bool {
-			list = append(list, ar.DTO())
-			return true
-		})
-
-		return c.JSON(list)
 	}
 }
 
@@ -149,8 +131,8 @@ func GetMuteAlertHandlerFunc(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		id := c.Params("id")
 
-		app.am.Range(func(ar *alert.AlertRec) bool {
-			if ar.Alert().ID == id {
+		app.am.Range(func(ar *alert.Alert) bool {
+			if ar.Key() == id {
 				ar.Mute()
 			}
 			return true

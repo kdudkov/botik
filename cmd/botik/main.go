@@ -126,8 +126,10 @@ func (app *App) Run() {
 	}
 	app.logger.Info("registering " + app.bot.Self.String())
 
+	ctx, _ := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+
 	go runHttpServer(app)
-	app.am.Start()
+	app.am.Start(ctx)
 
 	if app.cl != nil {
 		go app.cl.Run(context.TODO())
@@ -140,16 +142,11 @@ func (app *App) Run() {
 		return
 	}
 
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
-
-	app.ntfySend("bot started")
-
 	for {
 		select {
 		case update := <-updates:
 			go app.Process(update)
-		case <-sigc:
+		case <-ctx.Done():
 			app.logger.Info("quit")
 			app.quit()
 			return
@@ -197,7 +194,9 @@ func (app *App) onMessage(topic string, msg []byte) {
 	}
 
 	if topic == "frigate/reviews" {
-		app.ProcessReview(msg)
+		if err := app.ProcessReview(msg); err != nil {
+			app.logger.Error("can't process review", slog.Any("error", err))
+		}
 	}
 }
 

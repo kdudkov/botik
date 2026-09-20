@@ -15,33 +15,15 @@ func TestAlertBad(t *testing.T) {
 	})
 
 	al1 := &Alert{
-		ID:         "id",
-		Name:       "alert name",
-		GroupID:    "grp",
-		Expression: "a == b",
-		State:      "Error",
-		Value:      "43",
-		Labels:     map[string]string{"severity": "critical", "host": "host"},
-		Annotations: struct {
-			Summary     string `json:"summary"`
-			Description string `json:"description"`
-		}{Summary: "summary", Description: "description"},
-		ActiveAt: time.Now(),
+		Labels:      map[string]string{"alertname": "alert1", "severity": "critical", "host": "host"},
+		Annotations: map[string]string{"summary": "summary", "description": "description"},
+		StartsAt:    time.Now(),
 	}
 
 	al2 := &Alert{
-		ID:         "id",
-		Name:       "alert name",
-		GroupID:    "grp",
-		Expression: "a == b",
-		State:      "Error",
-		Value:      "43",
-		Labels:     map[string]string{"severity": "bad", "host": "host"},
-		Annotations: struct {
-			Summary     string `json:"summary"`
-			Description string `json:"description"`
-		}{},
-		ActiveAt: time.Now(),
+		Labels:      map[string]string{"alertname": "alert2", "severity": "critical", "host": "host"},
+		Annotations: map[string]string{"summary": "summary", "description": "description"},
+		StartsAt:    time.Now(),
 	}
 
 	for _, tpl := range []string{"alert_bad", "alert_good", "inactive", "reminder"} {

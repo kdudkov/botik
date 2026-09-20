@@ -2,11 +2,11 @@ version: '3'
 
 vars:
   GIT_VERSION:
-    sh: git describe --always --tags --dirty
+    sh: git describe --always --tags --dirty || echo ""
   GIT_COMMIT:
-    sh: git rev-parse HEAD
+    sh: git rev-parse HEAD || echo ""
   GIT_BRANCH:
-    sh: git branch --show-current
+    sh: git branch --show-current || echo ""
   LD: "-s -X main.version={{.GIT_VERSION}} -X main.commit={{.GIT_COMMIT}} -X 'main.date={{now | date \"02.01.2006 15:04\"}}'"
   L: "{{\"{{\"}}"
   R: "{{\"}}\"}}"
@@ -26,7 +26,7 @@ tasks:
       - mkdir -p dist
       - rm -rf dist/* || true
 
-  dep:
+  deps:
     desc: Tidy go modules
     cmds:
       - go mod tidy
@@ -34,25 +34,25 @@ tasks:
   update:
     desc: Update dependencies
     cmds:
-      - rm go.sum
+      - rm go.sum || true
       - go get -u ./...
       - go mod tidy
 
   test:
     desc: Run tests
-    deps: [ dep ]
+    deps: [ deps ]
     cmds:
       - go test ./...
 
   test:verbose:
     desc: Run tests
-    deps: [ dep ]
+    deps: [ deps ]
     cmds:
       - SQL_DEBUG=1 go test -v ./...
 
   build:
     desc: Build the application
-    deps: [ clean, dep ]
+    deps: [ clean, deps ]
     cmds:
       - go build -ldflags "{{.LD}}" -o dist/ ./cmd/...
 
@@ -81,6 +81,6 @@ tasks:
 
   gox:
     desc: Cross-compile for multiple platforms
-    deps: [ clean, dep ]
+    deps: [ clean, deps ]
     cmds:
       - GOARM=6 gox --osarch="linux/amd64 darwin/arm64" -output 'dist/{{.L}}.OS{{.R}}_{{.L}}.Arch{{.R}}/{{.L}}.Dir{{.R}}' -ldflags "{{.LD}}" ./cmd/...

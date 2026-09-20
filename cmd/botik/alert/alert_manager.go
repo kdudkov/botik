@@ -1,13 +1,11 @@
 package alert
 
 import (
+	"context"
 	"embed"
-	_ "embed"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"log/slog"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -19,10 +17,10 @@ var alerts embed.FS
 type AlertManager struct {
 	logger   *slog.Logger
 	alerts   sync.Map
-	chIn     chan string
-	client   *http.Client
+	chIn     chan *Alert
 	tpl      *template.Template
 	notifier func(msg string)
+	mx       sync.Mutex
 }
 
 func NewManager(logger *slog.Logger, notifier func(msg string)) *AlertManager {
@@ -35,53 +33,75 @@ func NewManager(logger *slog.Logger, notifier func(msg string)) *AlertManager {
 	return &AlertManager{
 		logger:   logger,
 		alerts:   sync.Map{},
-		chIn:     make(chan string, 50),
-		client:   &http.Client{Timeout: time.Second * 3},
+		chIn:     make(chan *Alert, 64),
 		tpl:      tmpl,
 		notifier: notifier,
+		mx:       sync.Mutex{},
 	}
 }
 
-func (a *AlertManager) Start() {
-	go a.alertProcessor()
-	go a.urlAdder()
+func (a *AlertManager) Start(ctx context.Context) {
+	go a.loop()
+	go a.reminder(ctx)
 }
 
-func (a *AlertManager) AddUrl(url string) {
+func (a *AlertManager) Add(alert *Alert) bool {
 	select {
-	case a.chIn <- url:
-		return
+	case a.chIn <- alert:
+		return true
 	default:
-		return
+		return false
 	}
 }
 
-func (a *AlertManager) urlAdder() {
-	for url := range a.chIn {
-		if _, ok := a.alerts.Load(url); ok {
-			return
-		}
+func (a *AlertManager) loop() {
+	for alert := range a.chIn {
+		if obj, ok := a.alerts.Swap(alert.Key(), alert); ok {
+			oldAlert := obj.(*Alert)
 
-		a.logger.Info("new alert: " + url)
+			if oldAlert.IsMuted() {
+				alert.Mute()
+			}
 
-		alertInfo, err := a.fetchAlertInfo(url)
-
-		if err != nil {
-			a.logger.Error("error getting alert", "error", err)
-			return
-		}
-
-		if alertInfo != nil {
-			ar := NewAlertRec(alertInfo, url)
-			a.alerts.Store(url, ar)
-			a.logger.Info(ar.String())
+			if alert.NeedsNotify() {
+				a.notify(alert, "reminder")
+			}
+		} else {
+			a.notify(alert, "alert_bad")
 		}
 	}
 }
 
-func (a *AlertManager) Range(f func(a *AlertRec) bool) {
+func (a *AlertManager) reminder(ctx context.Context) {
+	tick := time.NewTicker(time.Minute)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-tick.C:
+			a.remind()
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (a *AlertManager) remind() {
+	a.Range(func(alert *Alert) bool {
+		if !alert.IsActive() {
+			a.logger.Info(fmt.Sprintf("alert %s is good", alert.Name()))
+			a.notify(alert, "alert_good")
+
+			a.alerts.Delete(alert.Key())
+		}
+
+		return true
+	})
+}
+
+func (a *AlertManager) Range(f func(a *Alert) bool) {
 	a.alerts.Range(func(_, value any) bool {
-		if alertRec, ok := value.(*AlertRec); ok {
+		if alertRec, ok := value.(*Alert); ok {
 			return f(alertRec)
 		}
 
@@ -89,88 +109,13 @@ func (a *AlertManager) Range(f func(a *AlertRec) bool) {
 	})
 }
 
-func (a *AlertManager) alertProcessor() {
-	for {
-		a.alerts.Range(func(key, value interface{}) bool {
-			if alertRec, ok := value.(*AlertRec); ok {
-				alertInfo, err := a.fetchAlertInfo(key.(string))
-
-				if err != nil {
-					a.logger.Error(fmt.Sprintf("error getting alert %v", key), "error", err.Error())
-					return true
-				}
-
-				if alertInfo == nil {
-					a.logger.Info(fmt.Sprintf("remove %s alert (404)", key))
-					a.alerts.Delete(key)
-					a.notify(alertRec, "alert_good")
-
-					return true
-				}
-
-				a.update(alertRec, alertInfo)
-
-				if alertRec.NeedToNotify() {
-					if alertRec.IsNew() {
-						a.notify(alertRec, "alert_bad")
-					} else {
-						a.notify(alertRec, "reminder")
-					}
-				}
-			} else {
-				a.logger.Error(fmt.Sprintf("invalid value: %v", value))
-			}
-
-			return true
-		})
-
-		time.Sleep(time.Second)
-	}
-}
-
-func (a *AlertManager) fetchAlertInfo(alertUrl string) (*Alert, error) {
-	resp, err := a.client.Get(alertUrl)
-	if err != nil {
-		return nil, fmt.Errorf("error getting url %s: %s", alertUrl, err.Error())
-	}
-
-	if resp.StatusCode == 404 {
-		return nil, nil
-	}
-
-	if resp.StatusCode > 299 {
-		return nil, fmt.Errorf("error getting url %s: status %d", alertUrl, resp.StatusCode)
-	}
-
-	defer resp.Body.Close()
-	al := new(Alert)
-	m := json.NewDecoder(resp.Body)
-	if err := m.Decode(al); err != nil {
-		return nil, fmt.Errorf("json decode error %v", err)
-	}
-
-	return al, nil
-}
-
-func (a *AlertManager) update(rec *AlertRec, alert *Alert) {
-	old := rec.SetAlert(alert)
-
-	if old == nil || alert == nil {
+func (a *AlertManager) notify(alert *Alert, tpl string) {
+	if alert.IsMuted() {
 		return
 	}
 
-	if old.State != alert.State {
-		a.logger.Info(fmt.Sprintf("alert %s %s %s -> %s", old.ID, old.Name, old.State, alert.State))
-	}
-}
-
-func (a *AlertManager) notify(rec *AlertRec, tpl string) {
-	if rec.IsMuted() {
-		return
-	}
-
-	if msg, err := a.getMsg(rec.Alert(), tpl); err == nil {
-		rec.Notified()
+	if msg, err := a.getMsg(alert, tpl); err == nil {
+		alert.Notified()
 		a.notifier(msg)
 	} else {
 		a.logger.Error("error in template", "error", err)

@@ -1,7 +1,7 @@
-{{if eq .alert.Severity "critical"}}&#x1F7E5;{{else}}&#x1F7E7;{{end}} {{ .alert.Title}} [{{.alert.Severity}}]
+{{if eq .alert.Severity "critical"}}&#x1F7E5;{{else}}&#x1F7E7;{{end}} {{ .alert.Name}} [{{.alert.Severity}}]
 
-{{ if .alert.Annotations.Description }}Description: {{ .alert.Annotations.Description }}
+{{ if .alert.Description }}Description: {{ .alert.Description }}
 
 {{ end -}}
 {{ range $k, $v := .alert.Labels }}<b>{{ $k }}</b>:{{ $v}}, {{end}}
-id:{{ .alert.ID }}
+id:{{ .alert.Key }}

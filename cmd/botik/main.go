@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -312,12 +311,12 @@ func (app *App) Process(update tg.Update) {
 }
 
 func (app *App) getUser(id int64) string {
-	sid := strconv.Itoa(int(id))
-	for name, uid := range app.conf.StringMap("users") {
-		if uid == sid {
+	for name, uid := range app.conf.IntMap("users") {
+		if uid == int(id) {
 			return name
 		}
 	}
+
 	return ""
 }
 

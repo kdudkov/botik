@@ -18,6 +18,7 @@ func runHttpServer(app *App) {
 	a.Post("/send/:name", SendHandlerFunc(app))
 	a.Post("/grafana", GrafanaHandlerFunc(app))
 	a.Post("/api/v2/alerts", AlertsHandlerFunc(app))
+	a.Post("/api/alerts", AllAlertsHandlerFunc(app))
 	a.Get("/api/alerts/:id/mute", GetMuteAlertHandlerFunc(app))
 
 	app.logger.Info("start listener on " + app.conf.Listen())
@@ -124,6 +125,14 @@ func AlertsHandlerFunc(app *App) fiber.Handler {
 		}
 
 		return c.SendString("ok")
+	}
+}
+
+func AllAlertsHandlerFunc(app *App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		res := make([]*alert.Alert, 0)
+
+		return c.JSON(res)
 	}
 }
 

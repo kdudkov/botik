@@ -75,8 +75,9 @@ tasks:
   precommit:
     cmds:
       - task: format
-      - task: lint:new
       - task: test
+      - task: lint:new
+
 
   gox:
     desc: Cross-compile for multiple platforms

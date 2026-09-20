@@ -15,7 +15,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
-    
+
 	"botik/cmd/botik/alert"
 	"botik/cmd/botik/answer"
 
@@ -118,10 +118,6 @@ func (app *App) removeWebhook() {
 }
 
 func (app *App) Run() {
-	// for k := range app.users {
-	// 	app.logger.Info("user " + k)
-	// }
-
 	var err error
 	app.bot, err = app.createBot()
 
@@ -146,6 +142,8 @@ func (app *App) Run() {
 
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
+
+	app.ntfySend("bot started")
 
 	for {
 		select {
@@ -219,6 +217,23 @@ func (app *App) alertNotifier(text string) {
 				logger.Error("error send message", slog.Any("error", err))
 			}
 		}(app.logger.With("user", user, "id", id), id, text)
+	}
+
+	app.ntfySend(text)
+}
+
+func (app *App) ntfySend(text string) {
+	if topic := app.conf.String("ntfy.topic"); topic != "" {
+		r, err := http.Post("https://ntfy.sh/"+topic, "text/plain", strings.NewReader(text))
+
+		if err != nil {
+			app.logger.Error("http error", "error", err)
+			return
+		}
+
+		if r.StatusCode > 201 {
+			app.logger.Error("http status " + r.Status)
+		}
 	}
 }
 

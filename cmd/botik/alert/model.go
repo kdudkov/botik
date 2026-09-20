@@ -23,6 +23,16 @@ type Alert struct {
 	mx           sync.RWMutex
 }
 
+type AlertDTO struct {
+	Labels       map[string]string `json:"labels"`
+	Annotations  map[string]string `json:"annotations"`
+	StartsAt     time.Time         `json:"startsAt"`
+	EndsAt       time.Time         `json:"endsAt"`
+	GeneratorURL string            `json:"generatorURL"`
+	Muted        bool              `json:"muted"`
+	Active       bool              `json:"active"`
+}
+
 func (alert *Alert) String() string {
 	alert.mx.RLock()
 	defer alert.mx.RUnlock()
@@ -123,4 +133,23 @@ func (alert *Alert) Update(alert2 *Alert) {
 	alert.Annotations = make(map[string]string)
 
 	maps.Copy(alert.Annotations, alert2.Annotations)
+}
+
+func (alert *Alert) DTO() *AlertDTO {
+	if alert == nil {
+		return nil
+	}
+
+	alert.mx.RLock()
+	defer alert.mx.RUnlock()
+
+	return &AlertDTO{
+		Labels:       alert.Labels,
+		Annotations:  alert.Annotations,
+		StartsAt:     alert.StartsAt,
+		EndsAt:       alert.EndsAt,
+		GeneratorURL: alert.GeneratorURL,
+		Muted:        alert.muted,
+		Active:       alert.EndsAt.After(time.Now()),
+	}
 }

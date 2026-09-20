@@ -1,10 +1,11 @@
 package answer
 
 import (
-	"botik/internal/api"
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"botik/internal/api"
 )
 
 const (

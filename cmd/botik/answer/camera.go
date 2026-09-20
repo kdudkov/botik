@@ -1,9 +1,10 @@
 package answer
 
 import (
-	"botik/internal/util"
 	"log/slog"
 	"strings"
+
+	"botik/internal/util"
 )
 
 type Camera struct {

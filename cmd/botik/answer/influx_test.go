@@ -1,10 +1,11 @@
 package answer
 
 import (
-	"botik/internal/api"
 	"fmt"
 	"strings"
 	"testing"
+
+	"botik/internal/api"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -73,7 +72,7 @@ func (m *MahnoHttpApi) ItemCommand(item string, cmd string) error {
 		return err
 	}
 
-	m.logger.Info(fmt.Sprintf("body: " + string(body)))
+	m.logger.Info("body: " + string(body))
 	return nil
 }
 
@@ -85,7 +84,7 @@ func (m *MahnoHttpApi) GroupCommand(name string, cmd string) error {
 		return err
 	}
 
-	m.logger.Info(fmt.Sprintf("body: " + string(body)))
+	m.logger.Info("body: " + string(body))
 	return nil
 }
 
@@ -97,7 +96,7 @@ func (m *MahnoHttpApi) SetItemState(item string, val string) error {
 		return err
 	}
 
-	m.logger.Info(fmt.Sprintf("body: " + string(body)))
+	m.logger.Info("body: " + string(body))
 	return nil
 }
 

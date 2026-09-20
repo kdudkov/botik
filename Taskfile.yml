@@ -2,18 +2,23 @@ version: '3'
 
 vars:
   GIT_VERSION:
-    sh: git describe --always --tags --dirty || echo ""
+    sh: git describe --always --tags --dirty || echo "unknown"
   GIT_COMMIT:
-    sh: git rev-parse HEAD || echo ""
+    sh: git rev-parse HEAD || echo "unknown"
   GIT_BRANCH:
     sh: git branch --show-current || echo ""
+  GIT_LAST_TAG:
+    sh: git describe --tags --abbrev=0 || echo ""
+  MODULE:
+    sh: go mod edit -print | awk '/^module/ {print $2}'
   LD: "-s -X main.version={{.GIT_VERSION}} -X main.commit={{.GIT_COMMIT}} -X 'main.date={{now | date \"02.01.2006 15:04\"}}'"
   L: "{{\"{{\"}}"
   R: "{{\"}}\"}}"
 
 tasks:
   default:
-    deps: [ precommit ]
+    cmds:
+      - task: precommit
 
   tools:
     desc: Install development tools
@@ -34,7 +39,7 @@ tasks:
   update:
     desc: Update dependencies
     cmds:
-      - rm go.sum || true
+      - rm go.sum
       - go get -u ./...
       - go mod tidy
 
@@ -64,20 +69,22 @@ tasks:
   lint:new:
     desc: Run golangci-lint on new changes
     cmds:
-      - golangci-lint run ./... --new-from-rev $(git rev-parse HEAD^^^^^)
+      - cmd: golangci-lint run ./... --new-from-rev $(git rev-parse HEAD^^^)
+        if: '{{eq .GIT_BRANCH "master"}}'
+      - cmd: golangci-lint run ./... --new-from-rev $(git rev-parse master)
+        if: '{{ne .GIT_BRANCH "master"}}'
 
   format:
     desc: Format code
     cmds:
       - gofmt -s -w .
-      - goimports -w .
+      - goimports -w -local={{.MODULE}} .
 
   precommit:
+    deps: [ clean, deps, format ]
     cmds:
-      - task: format
       - task: test
       - task: lint:new
-
 
   gox:
     desc: Cross-compile for multiple platforms

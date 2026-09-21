@@ -24,6 +24,7 @@ type Alert struct {
 }
 
 type AlertDTO struct {
+	ID           string            `json:"id"`
 	Labels       map[string]string `json:"labels"`
 	Annotations  map[string]string `json:"annotations"`
 	StartsAt     time.Time         `json:"startsAt"`
@@ -45,6 +46,10 @@ func (alert *Alert) Key() string {
 	alert.mx.RLock()
 	defer alert.mx.RUnlock()
 
+	return alert.key()
+}
+
+func (alert *Alert) key() string {
 	b, _ := json.Marshal(alert.Labels)
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
@@ -88,6 +93,10 @@ func (alert *Alert) IsActive() bool {
 	alert.mx.RLock()
 	defer alert.mx.RUnlock()
 
+	return alert.isActive()
+}
+
+func (alert *Alert) isActive() bool {
 	return alert.EndsAt.After(time.Now())
 }
 
@@ -146,12 +155,13 @@ func (alert *Alert) DTO() *AlertDTO {
 	defer alert.mx.RUnlock()
 
 	return &AlertDTO{
+		ID:           alert.key(),
 		Labels:       alert.Labels,
 		Annotations:  alert.Annotations,
 		StartsAt:     alert.StartsAt,
 		EndsAt:       alert.EndsAt,
 		GeneratorURL: alert.GeneratorURL,
 		Muted:        alert.muted,
-		Active:       alert.EndsAt.After(time.Now()),
+		Active:       alert.isActive(),
 	}
 }

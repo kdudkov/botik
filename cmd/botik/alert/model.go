@@ -123,6 +123,20 @@ func (alert *Alert) NeedsNotify() bool {
 	return time.Since(alert.lastNotify) > NotificationTime
 }
 
+func (alert *Alert) Update(a1 *Alert) {
+	if alert == nil || a1 == nil {
+		return
+	}
+
+	alert.mx.RLock()
+	defer alert.mx.RUnlock()
+
+	alert.StartsAt = a1.StartsAt
+	alert.EndsAt = a1.EndsAt
+
+	alert.Annotations = a1.Annotations
+}
+
 func (alert *Alert) DTO() *AlertDTO {
 	if alert == nil {
 		return nil

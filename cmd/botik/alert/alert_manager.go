@@ -56,14 +56,12 @@ func (a *AlertManager) Add(alert *Alert) bool {
 
 func (a *AlertManager) loop() {
 	for alert := range a.chIn {
-		if obj, ok := a.alerts.Swap(alert.Key(), alert); ok {
+		if obj, loaded := a.alerts.LoadOrStore(alert.Key(), alert); loaded {
 			oldAlert := obj.(*Alert)
 
-			if oldAlert.IsMuted() {
-				alert.Mute()
-			}
+			oldAlert.Update(alert)
 
-			if alert.NeedsNotify() {
+			if oldAlert.NeedsNotify() {
 				a.notify(alert, "reminder")
 			}
 		} else {

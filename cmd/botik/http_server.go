@@ -120,8 +120,7 @@ func AlertsHandlerFunc(app *App) fiber.Handler {
 		}
 
 		for _, a := range list {
-			app.logger.Info("new alert: " + a.String())
-			app.am.Add(a)
+			app.am.Process(a)
 		}
 
 		return c.SendString("ok")

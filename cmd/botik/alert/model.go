@@ -129,7 +129,12 @@ func (alert *Alert) NeedsNotify() bool {
 		return false
 	}
 
-	return time.Since(alert.lastNotify) > NotificationTime
+	// stale but not notified
+	if !alert.isActive() && alert.lastNotify.Before(alert.EndsAt) {
+		return true
+	}
+
+	return alert.isActive() && time.Since(alert.lastNotify) > NotificationTime
 }
 
 func (alert *Alert) Update(a1 *Alert) {

@@ -110,6 +110,7 @@ func (a *AlertManager) loop() {
 			continue
 		}
 
+		n.alert.Notified()
 		a.notifier(msg)
 	}
 }

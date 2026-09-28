@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -161,6 +162,7 @@ func (app *App) createBot() (*tg.BotAPI, error) {
 		}
 
 		client := &http.Client{
+			Timeout: 90 * time.Second,
 			Transport: &http.Transport{
 				Proxy: http.ProxyURL(proxyURL),
 			},
@@ -168,7 +170,7 @@ func (app *App) createBot() (*tg.BotAPI, error) {
 
 		return tg.NewBotAPIWithClient(app.conf.String("token"), tg.APIEndpoint, client)
 	} else {
-		return tg.NewBotAPI(app.conf.String("token"))
+		return tg.NewBotAPIWithClient(app.conf.String("token"), tg.APIEndpoint, &http.Client{Timeout: 90 * time.Second})
 	}
 }
 
@@ -199,40 +201,43 @@ func (app *App) onMessage(topic string, msg []byte) {
 	}
 }
 
-func (app *App) alertNotifier(text string) {
+// ponytail: retry the whole notification on partial failure; successful recipients
+// may receive duplicates. Add per-recipient tracking if that becomes a problem.
+func (app *App) alertNotifier(text string, tags []string) error {
+	var errs []error
 	for _, user := range app.conf.Strings("notify") {
 		id, err := app.IdByName(user)
-
 		if err != nil {
-			app.logger.Error("invalid user "+user, slog.Any("error", err))
+			errs = append(errs, fmt.Errorf("recipient %s: %w", user, err))
 			continue
 		}
-
-		go func(logger *slog.Logger, id int64, text string) {
-			logger.Info("sending notification")
-
-			if _, err := app.sendTgWithMode(id, text, "HTML"); err != nil {
-				logger.Error("error send message", slog.Any("error", err))
-			}
-		}(app.logger.With("user", user, "id", id), id, text)
+		if _, err := app.sendTgWithMode(id, text, "HTML"); err != nil {
+			errs = append(errs, fmt.Errorf("recipient %s: %w", user, err))
+		}
 	}
 
-	app.ntfySend(text)
+	return errors.Join(errs...)
 }
 
-func (app *App) ntfySend(text string) {
+func (app *App) ntfyNotifier(text string, tags []string) error {
 	if topic := app.conf.String("ntfy.topic"); topic != "" {
-		r, err := http.Post("https://ntfy.sh/"+topic, "text/plain", strings.NewReader(text))
+		req, _ := http.NewRequest("POST", "https://ntfy.sh/"+topic, strings.NewReader(text))
+		req.Header.Set("Title", "Alerts")
+		// req.Header.Set("Priority", "urgent")
+		req.Header.Set("Tags", strings.Join(tags, ","))
+		resp, err := http.DefaultClient.Do(req)
 
 		if err != nil {
-			app.logger.Error("http error", "error", err)
-			return
+			return err
 		}
-
-		if r.StatusCode > 201 {
-			app.logger.Error("http status " + r.Status)
+		defer resp.Body.Close()
+		
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return fmt.Errorf("ntfy HTTP status %s", resp.Status)
 		}
 	}
+	
+	return nil
 }
 
 func (app *App) Process(update tg.Update) {

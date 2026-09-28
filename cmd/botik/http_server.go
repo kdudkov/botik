@@ -120,7 +120,15 @@ func AlertsHandlerFunc(app *App) fiber.Handler {
 		}
 
 		for _, a := range list {
-			app.am.Process(a)
+			if a == nil {
+				return fiber.NewError(fiber.StatusBadRequest, "null alert")
+			}
+		}
+
+		for _, a := range list {
+			if !app.am.Add(a) {
+				return c.Status(fiber.StatusServiceUnavailable).SendString("alert queue is full")
+			}
 		}
 
 		return c.SendString("ok")
@@ -129,9 +137,9 @@ func AlertsHandlerFunc(app *App) fiber.Handler {
 
 func AllAlertsHandlerFunc(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		res := make([]*alert.AlertDTO, 0)
+		res := make([]*alert.AlertStateDTO, 0)
 
-		app.am.Range(func(a *alert.Alert) bool {
+		app.am.Range(func(a *alert.AlertState) bool {
 			res = append(res, a.DTO())
 
 			return true
@@ -145,8 +153,8 @@ func GetMuteAlertHandlerFunc(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		id := c.Params("id")
 
-		app.am.Range(func(ar *alert.Alert) bool {
-			if ar.Key() == id {
+		app.am.Range(func(ar *alert.AlertState) bool {
+			if ar.DTO().ID == id {
 				ar.Mute()
 			}
 			return true
@@ -176,7 +184,7 @@ func (app *App) sendTgWithMode(id int64, text string, mode string) (int, error) 
 		logger.Error("can't send message", "error", err)
 	}
 
-	return msg1.MessageID, nil
+	return msg1.MessageID, err
 }
 
 func MakeGrafanaMsg(r *GrafanaReq) string {

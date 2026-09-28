@@ -1,4 +1,4 @@
-{{if eq .alert.Severity "critical"}}&#x1F7E5;{{else}}&#x1F7E7;{{end}} {{.alert.Name}} [{{.alert.Severity}}] (reminder)
+{{if eq .alert.Severity "critical"}}!!!{{end}} {{.alert.Name}} [{{.alert.Severity}}] (reminder)
 
 {{ if .alert.Description }}Description: {{ .alert.Description }}
 

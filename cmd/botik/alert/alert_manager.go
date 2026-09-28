@@ -3,7 +3,6 @@ package alert
 import (
 	"context"
 	"embed"
-	"fmt"
 	"html/template"
 	"log/slog"
 	"strings"
@@ -17,13 +16,12 @@ var alerts embed.FS
 type AlertManager struct {
 	logger   *slog.Logger
 	alerts   sync.Map
-	chIn     chan *Notification
+	chIn     chan *Alert
 	tpl      *template.Template
-	notifier func(msg string)
-	mx       sync.Mutex
+	notifier func(msg string, tags []string) error
 }
 
-func NewManager(logger *slog.Logger, notifier func(msg string)) *AlertManager {
+func NewManager(logger *slog.Logger, notifier func(string, []string) error) *AlertManager {
 	tmpl, err := template.New("").ParseFS(alerts, "template/*")
 
 	if err != nil {
@@ -33,144 +31,116 @@ func NewManager(logger *slog.Logger, notifier func(msg string)) *AlertManager {
 	return &AlertManager{
 		logger:   logger,
 		alerts:   sync.Map{},
-		chIn:     make(chan *Notification, 64),
+		chIn:     make(chan *Alert, 64),
 		tpl:      tmpl,
 		notifier: notifier,
-		mx:       sync.Mutex{},
 	}
 }
 
 func (a *AlertManager) Start(ctx context.Context) {
-	go a.loop()
-	go a.reminder(ctx)
+	go a.loop(ctx)
 }
 
-func (a *AlertManager) AddNotification(alert *Alert, typ NotificationType) {
+func (a *AlertManager) Add(alert *Alert) bool {
+	if alert == nil {
+		return false
+	}
 	select {
-	case a.chIn <- &Notification{alert: alert, typ: typ}:
-		return
+	case a.chIn <- alert:
+		return true
 	default:
+		return false
 	}
 }
 
-func (a *AlertManager) Process(alert *Alert) {
-	if obj, loaded := a.alerts.LoadOrStore(alert.Key(), alert); loaded {
-		oldAlert := obj.(*Alert)
-		wasActive := oldAlert.IsActive()
-		oldAlert.Update(alert)
+func (a *AlertManager) process(alert *Alert) {
+	if alert == nil {
+		return
+	}
 
-		a.logger.Debug("alert " + alert.String())
+	var st *AlertState
 
-		if wasActive && !alert.IsActive() {
-			a.logger.Info(fmt.Sprintf("active -> inactive, alert %s", alert.String()))
-			a.AddNotification(oldAlert, NotificationGood)
-		}
+	key := alert.Key()
 
-		if !wasActive && alert.IsActive() {
-			a.logger.Info(fmt.Sprintf("inactive -> active, alert %s", alert.String()))
-			a.AddNotification(oldAlert, NotificationBad)
-		}
-
-		if oldAlert.NeedsNotify() {
-			a.logger.Info(fmt.Sprintf("remind, alert %s", alert.String()))
-			a.AddNotification(oldAlert, NotificationRemind)
-		}
+	if obj, loaded := a.alerts.Load(key); loaded {
+		st = obj.(*AlertState)
 	} else {
-		if alert.isActive() {
-			a.AddNotification(alert, NotificationBad)
-		}
+		initial := &AlertState{id: key}
+		obj, _ := a.alerts.LoadOrStore(key, initial)
+		st = obj.(*AlertState)
 	}
-}
 
-func (a *AlertManager) loop() {
-	for n := range a.chIn {
-		if n.alert.IsMuted() {
-			continue
+	changed := st.Update(alert)
+
+	var tpl string
+	var tags []string
+	
+	switch {
+	case !st.isActive() && changed:
+		tpl = "alert_good"
+		tags = []string{"green_square", "alerts"}
+	case st.isActive() && changed:
+		tpl = "alert_bad"
+		tags = []string{"warning", "alerts"}
+		if alert.Labels["severity"] == "critical" {
+			tags = append(tags, "red_square")
+		} else {
+			tags = append(tags, "yellow_square")
 		}
+	case !changed && st.needsNotify():
+		tpl = "reminder"
+		tags = []string{"alarm_clock", "alerts"}
+	}
 
-		if !n.alert.NeedsNotify() {
-			a.logger.Warn(fmt.Sprintf("alert %s changed his mind", n.alert.String()))
-			continue
-		}
-
-		var msg string
-		var err error
-
-		switch n.typ {
-		case NotificationGood:
-			msg, err = a.getMsg(n.alert, "alert_good")
-		case NotificationBad:
-			msg, err = a.getMsg(n.alert, "alert_bad")
-		case NotificationRemind:
-			msg, err = a.getMsg(n.alert, "reminder")
-		}
+	if tpl != "" {
+		msg, err := a.getMsg(alert, tpl)
 
 		if err != nil {
-			a.logger.Error("template error", "error", err.Error())
-			continue
+			a.logger.Error("template error", "error", err)
+			return
 		}
 
-		n.alert.Notified()
-		a.notifier(msg)
+		if err := a.notifier(msg, tags); err != nil {
+			a.logger.Error("notification failed", "error", err)
+			return
+		}
+
+		st.acknowledge()
 	}
 }
 
-func (a *AlertManager) reminder(ctx context.Context) {
+func (a *AlertManager) loop(ctx context.Context) {
 	tick := time.NewTicker(time.Minute)
 	defer tick.Stop()
-
 	for {
 		select {
-		case <-tick.C:
-			a.remind()
+		case alert, ok := <-a.chIn:
+			if !ok {
+				return
+			}
+			a.process(alert)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func (a *AlertManager) remind() {
-	a.Range(func(alert *Alert) bool {
-		if alert.NeedsNotify() {
-			if alert.IsActive() {
-				a.AddNotification(alert, NotificationRemind)
-			} else {
-				a.AddNotification(alert, NotificationGood)
-			}
-		}
-
-		return true
-	})
-}
-
-func (a *AlertManager) Range(f func(a *Alert) bool) {
+func (a *AlertManager) Range(f func(*AlertState) bool) {
 	a.alerts.Range(func(_, value any) bool {
-		if alertRec, ok := value.(*Alert); ok {
-			return f(alertRec)
-		}
-
-		return true
+		return f(value.(*AlertState))
 	})
-}
-
-func (a *AlertManager) notify(alert *Alert, tpl string) {
-	if alert.IsMuted() {
-		return
-	}
-
-	if msg, err := a.getMsg(alert, tpl); err == nil {
-		alert.Notified()
-		a.notifier(msg)
-	} else {
-		a.logger.Error("error in template", "error", err)
-	}
 }
 
 func (a *AlertManager) getMsg(alert *Alert, tpl_name string) (string, error) {
 	sb := new(strings.Builder)
 
-	if err := a.tpl.ExecuteTemplate(sb, tpl_name, map[string]any{"alert": alert}); err != nil {
-		a.logger.Error("error in template", "error", err)
+	if err := a.tpl.ExecuteTemplate(sb, tpl_name, map[string]any{"alert": map[string]any{
+		"Name":        alert.Labels["alertname"],
+		"Severity":    alert.Labels["severity"],
+		"Description": alert.Annotations["description"],
+		"Labels":      alert.Labels,
+		"Key":         alert.Key(),
+	}}); err != nil {
 		return "", err
 	}
 

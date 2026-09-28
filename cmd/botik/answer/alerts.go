@@ -57,16 +57,17 @@ func (cam *Alerts) Process(q *Q) *Answer {
 		}
 
 		if id == "" {
-			return nil
+			return TextAnswer("Отправьте mute в ответ на уведомление об алерте с id.")
 		}
 
 		cam.logger.Info("mute id " + id)
 
 		var ans string
-		cam.am.Range(func(ar *alert.Alert) bool {
-			if ar.Key() == id {
+		cam.am.Range(func(ar *alert.AlertState) bool {
+			dto := ar.DTO()
+			if dto.ID == id {
 				ar.Mute()
-				ans = fmt.Sprintf("alert %s is muted", ar.Name())
+				ans = fmt.Sprintf("alert %s is muted", dto.Labels["alertname"])
 				return false
 			}
 
@@ -81,8 +82,9 @@ func (cam *Alerts) Process(q *Q) *Answer {
 
 	case "alerts":
 		var ans string
-		cam.am.Range(func(ar *alert.Alert) bool {
-			ans += "- " + ar.String() + "\n"
+		cam.am.Range(func(ar *alert.AlertState) bool {
+			dto := ar.DTO()
+			ans += "- " + (&alert.Alert{Labels: dto.Labels, Annotations: dto.Annotations, StartsAt: dto.StartsAt, EndsAt: dto.EndsAt, GeneratorURL: dto.GeneratorURL}).String() + "\n"
 
 			return true
 		})

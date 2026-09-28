@@ -1,7 +1,6 @@
 package alert
 
 import (
-	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -10,8 +9,8 @@ import (
 )
 
 func TestAlertBad(t *testing.T) {
-	am := NewManager(slog.Default(), func(msg string) {
-
+	am := NewManager(slog.Default(), func(msg string, tags []string) error {
+		return nil
 	})
 
 	al1 := &Alert{
@@ -26,19 +25,17 @@ func TestAlertBad(t *testing.T) {
 		StartsAt:    time.Now(),
 	}
 
-	for _, tpl := range []string{"alert_bad", "alert_good", "inactive", "reminder"} {
+	for _, tpl := range []string{"alert_bad", "alert_good", "reminder"} {
 		t.Run("alert_"+tpl, func(t *testing.T) {
 			s, err := am.getMsg(al1, tpl)
 
 			assert.NoError(t, err)
-			fmt.Println("========= " + tpl)
-			fmt.Println(s)
+			assert.Contains(t, s, al1.Name())
 
 			s, err = am.getMsg(al2, tpl)
 
 			assert.NoError(t, err)
-			fmt.Println("========= " + tpl)
-			fmt.Println(s)
+			assert.Contains(t, s, al2.Name())
 		})
 	}
 

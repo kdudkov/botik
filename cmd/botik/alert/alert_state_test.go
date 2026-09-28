@@ -30,4 +30,3 @@ func TestStateUpdates(t *testing.T) {
 		})
 	}
 }
-

@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"botik/cmd/botik/alert"
 	"github.com/gofiber/fiber/v2"
+
+	"botik/cmd/botik/alert"
 )
 
 func TestAlertsHandlerRejectsOverflow(t *testing.T) {

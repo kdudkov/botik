@@ -9,14 +9,14 @@ import (
 const NotificationTime = time.Minute * 60
 
 type AlertState struct {
-	id               string
-	alert            *Alert
-	active           bool
-	muted            bool
-	updated          time.Time
-	lastNotify       time.Time
-	revision         uint64
-	mx               sync.RWMutex
+	id         string
+	alert      *Alert
+	active     bool
+	muted      bool
+	updated    time.Time
+	lastNotify time.Time
+	revision   uint64
+	mx         sync.RWMutex
 }
 
 type AlertStateDTO struct {

@@ -231,12 +231,12 @@ func (app *App) ntfyNotifier(text string, tags []string) error {
 			return err
 		}
 		defer resp.Body.Close()
-		
+
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return fmt.Errorf("ntfy HTTP status %s", resp.Status)
 		}
 	}
-	
+
 	return nil
 }
 

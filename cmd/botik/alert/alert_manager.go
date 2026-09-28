@@ -74,7 +74,7 @@ func (a *AlertManager) process(alert *Alert) {
 
 	var tpl string
 	var tags []string
-	
+
 	switch {
 	case !st.isActive() && changed:
 		tpl = "alert_good"

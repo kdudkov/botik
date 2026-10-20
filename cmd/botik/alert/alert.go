@@ -33,6 +33,10 @@ func (alert *Alert) Name() string {
 	return cmp.Or(alert.Summary(), alert.AlertName())
 }
 
+func (alert *Alert) Severity() string {
+	return alert.Labels["severity"]
+}
+
 func (alert *Alert) AlertName() string {
 	return alert.Labels["alertname"]
 }

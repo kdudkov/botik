@@ -1,8 +1,7 @@
-{{if eq .alert.Severity "critical"}}!!!{{end}} {{.alert.Name}} [{{.alert.Severity}}] (reminder)
+{{if eq .Severity "critical"}}!!!{{end}} {{.Name}} [{{.Severity}}] (reminder)
 
-{{ if .alert.Description }}Description: {{ .alert.Description }}
+{{ if .Description }}Description: {{ .Description }}
 
 {{ end -}}
-{{ range $k, $v := .alert.Labels }}<b>{{ $k }}</b>:{{ $v}}, {{end}}
-{{ range $k, $v := .alert.Annotations }}<b>{{ $k }}</b>:{{ $v}}, {{end}}
-id:{{ .alert.Key }}
+{{ range $k, $v := .Labels }}<b>{{ $k }}</b>:{{ $v}}, {{end}}
+id:{{ .Key }}

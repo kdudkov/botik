@@ -1,1 +1,1 @@
-{{ .alert.Name }} is good
+{{ .Name }} is good

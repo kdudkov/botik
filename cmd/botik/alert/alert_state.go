@@ -82,7 +82,7 @@ func (a *AlertState) Update(alert *Alert) bool {
 	a.mx.Lock()
 	defer a.mx.Unlock()
 
-	active := alert.isActive()
+	active := alert.IsActive()
 	changed := a.alert == nil || a.active != active || !a.alert.StartsAt.Equal(alert.StartsAt)
 	if changed {
 		a.revision++

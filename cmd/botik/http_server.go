@@ -140,7 +140,9 @@ func AllAlertsHandlerFunc(app *App) fiber.Handler {
 		res := make([]*alert.AlertStateDTO, 0)
 
 		app.am.Range(func(a *alert.AlertState) bool {
-			res = append(res, a.DTO())
+			if a.Alert().IsActive() {
+				res = append(res, a.DTO())
+			}
 
 			return true
 		})

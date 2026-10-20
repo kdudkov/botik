@@ -49,6 +49,6 @@ func (alert *Alert) Description() string {
 	return alert.Annotations["description"]
 }
 
-func (alert *Alert) isActive() bool {
+func (alert *Alert) IsActive() bool {
 	return alert.EndsAt.IsZero() || alert.EndsAt.After(time.Now())
 }

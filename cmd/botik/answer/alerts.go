@@ -83,7 +83,9 @@ func (cam *Alerts) Process(q *Q) *Answer {
 	case "alerts":
 		var ans string
 		cam.am.Range(func(ar *alert.AlertState) bool {
-			ans += "- " + ar.Alert().Name() + "\n"
+			if ar.Alert().IsActive() {
+				ans += "- " + ar.Alert().Name() + "\n"
+			}
 
 			return true
 		})

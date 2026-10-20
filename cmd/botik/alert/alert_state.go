@@ -52,6 +52,13 @@ func (a *AlertState) isActive() bool {
 	return a.active
 }
 
+func (a *AlertState) Alert() *Alert {
+	a.mx.RLock()
+	defer a.mx.RUnlock()
+
+	return a.alert
+}
+
 func (a *AlertState) needsNotify() bool {
 	a.mx.RLock()
 	defer a.mx.RUnlock()

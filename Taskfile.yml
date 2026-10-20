@@ -40,7 +40,7 @@ tasks:
     desc: Update dependencies
     cmds:
       - rm go.sum
-      - go get -u ./...
+      - go get -u all
       - go mod tidy
 
   test:
@@ -53,7 +53,7 @@ tasks:
     desc: Run tests
     deps: [ deps ]
     cmds:
-      - SQL_DEBUG=1 go test -v ./...
+      - go test -v ./...
 
   build:
     desc: Build the application

@@ -135,10 +135,11 @@ func (a *AlertManager) getMsg(alert *Alert, tpl_name string) (string, error) {
 	sb := new(strings.Builder)
 
 	if err := a.tpl.ExecuteTemplate(sb, tpl_name, map[string]any{"alert": map[string]any{
-		"Name":        alert.Labels["alertname"],
+		"Name":        alert.Name(),
 		"Severity":    alert.Labels["severity"],
 		"Description": alert.Annotations["description"],
 		"Labels":      alert.Labels,
+		"Annotations": alert.Annotations,
 		"Key":         alert.Key(),
 	}}); err != nil {
 		return "", err

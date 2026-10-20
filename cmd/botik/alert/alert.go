@@ -1,6 +1,7 @@
 package alert
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -29,7 +30,15 @@ func (alert *Alert) Key() string {
 }
 
 func (alert *Alert) Name() string {
+	return cmp.Or(alert.Summary(), alert.AlertName())
+}
+
+func (alert *Alert) AlertName() string {
 	return alert.Labels["alertname"]
+}
+
+func (alert *Alert) Summary() string {
+	return alert.Annotations["summary"]
 }
 
 func (alert *Alert) Description() string {

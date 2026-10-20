@@ -67,7 +67,7 @@ func (cam *Alerts) Process(q *Q) *Answer {
 			dto := ar.DTO()
 			if dto.ID == id {
 				ar.Mute()
-				ans = fmt.Sprintf("alert %s is muted", dto.Labels["alertname"])
+				ans = fmt.Sprintf("alert %s is muted", dto.Name)
 				return false
 			}
 
@@ -83,8 +83,7 @@ func (cam *Alerts) Process(q *Q) *Answer {
 	case "alerts":
 		var ans string
 		cam.am.Range(func(ar *alert.AlertState) bool {
-			dto := ar.DTO()
-			ans += "- " + (&alert.Alert{Labels: dto.Labels, Annotations: dto.Annotations, StartsAt: dto.StartsAt, EndsAt: dto.EndsAt, GeneratorURL: dto.GeneratorURL}).String() + "\n"
+			ans += "- " + ar.Alert().Name() + "\n"
 
 			return true
 		})

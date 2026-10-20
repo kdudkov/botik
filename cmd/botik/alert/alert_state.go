@@ -21,6 +21,7 @@ type AlertState struct {
 
 type AlertStateDTO struct {
 	ID           string            `json:"id"`
+	Name         string            `json:"name"`
 	Revision     uint64            `json:"revision"`
 	Labels       map[string]string `json:"labels"`
 	Annotations  map[string]string `json:"annotations"`
@@ -108,6 +109,7 @@ func (a *AlertState) DTO() *AlertStateDTO {
 
 	return &AlertStateDTO{
 		ID:           a.id,
+		Name:         a.alert.Name(),
 		Revision:     a.revision,
 		Labels:       maps.Clone(a.alert.Labels),
 		Annotations:  maps.Clone(a.alert.Annotations),

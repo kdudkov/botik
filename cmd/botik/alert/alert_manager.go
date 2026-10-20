@@ -137,7 +137,7 @@ func (a *AlertManager) getMsg(alert *Alert, tpl_name string) (string, error) {
 	if err := a.tpl.ExecuteTemplate(sb, tpl_name, map[string]any{"alert": map[string]any{
 		"Name":        alert.Name(),
 		"Severity":    alert.Labels["severity"],
-		"Description": alert.Annotations["description"],
+		"Description": alert.Description(),
 		"Labels":      alert.Labels,
 		"Annotations": alert.Annotations,
 		"Key":         alert.Key(),

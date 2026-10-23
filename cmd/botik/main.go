@@ -201,9 +201,13 @@ func (app *App) onMessage(topic string, msg []byte) {
 	}
 }
 
-// ponytail: retry the whole notification on partial failure; successful recipients
-// may receive duplicates. Add per-recipient tracking if that becomes a problem.
 func (app *App) alertNotifier(text string, tags []string) error {
+	for _, t := range tags {
+		if s, ok := tagsUnocode[t]; ok {
+			text = s + " " + text
+		}
+	}
+
 	var errs []error
 	for _, user := range app.conf.Strings("notify") {
 		id, err := app.IdByName(user)

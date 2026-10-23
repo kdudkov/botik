@@ -81,7 +81,7 @@ func (a *AlertManager) process(alert *Alert) {
 		tags = []string{"green_square", "alerts"}
 	case st.isActive() && changed:
 		tpl = "alert_bad"
-		tags = []string{"warning", "alerts"}
+		tags = []string{"alerts"}
 		if alert.Labels["severity"] == "critical" {
 			tags = append(tags, "red_square")
 		} else {

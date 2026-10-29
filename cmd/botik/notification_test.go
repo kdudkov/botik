@@ -32,7 +32,7 @@ func TestTelegramDeliveryErrors(t *testing.T) {
 		if _, err := app.sendTgWithMode(1, "alert", "HTML"); err == nil {
 			t.Fatal("Telegram error swallowed")
 		}
-		if err := app.alertNotifier("alert", nil); err == nil {
+		if err := app.tgNotifier("alert", nil); err == nil {
 			t.Fatal("notifier acknowledged failed delivery")
 		}
 	}

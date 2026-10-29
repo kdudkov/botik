@@ -100,13 +100,17 @@ func (a *AlertManager) process(alert *Alert) {
 			return
 		}
 
-		if err := a.notifier(msg, tags); err != nil {
-			a.logger.Error("notification failed", "error", err)
-			return
-		}
-
-		st.acknowledge()
+		go a.notify(st, msg, tags)
 	}
+}
+
+func (a *AlertManager) notify(st *AlertState, msg string, tags []string) {
+	if err := a.notifier(msg, tags); err != nil {
+		a.logger.Error("notification failed", "error", err)
+		return
+	}
+
+	st.acknowledge()
 }
 
 func (a *AlertManager) loop(ctx context.Context) {

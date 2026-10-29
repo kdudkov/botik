@@ -39,7 +39,7 @@ tasks:
   update:
     desc: Update dependencies
     cmds:
-      - rm go.sum
+      - rm go.sum || true
       - go get -u all
       - go mod tidy
 

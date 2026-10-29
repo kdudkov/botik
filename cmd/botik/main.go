@@ -44,7 +44,7 @@ func NewApp(conf *AppConfig) *App {
 		ans:    answer.New(),
 	}
 
-	app.am = alert.NewManager(slog.Default().With("logger", "alerts"), app.alertNotifier)
+	app.am = alert.NewManager(slog.Default().With("logger", "alerts"), app.ntfyNotifier)
 
 	if s := app.conf.String("mahno.host"); s != "" {
 		if err := app.ans.RegisterAnswer("light", answer.NewLight(app.logger, s)); err != nil {
@@ -201,7 +201,7 @@ func (app *App) onMessage(topic string, msg []byte) {
 	}
 }
 
-func (app *App) alertNotifier(text string, tags []string) error {
+func (app *App) tgNotifier(text string, tags []string) error {
 	for _, t := range tags {
 		if s, ok := tagsUnocode[t]; ok {
 			text = s + " " + text
